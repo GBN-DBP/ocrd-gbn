@@ -1,2 +1,1 @@
-from .main import *
-from .ocrd_cli import *
+from .cli import *

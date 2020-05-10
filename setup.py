@@ -23,8 +23,7 @@ setup(
     },
     entry_points={
       'console_scripts': [
-        "sbb_textline_detector=qurator.sbb_textline_detector:main",
-        "ocrd-sbb-textline-detector=qurator.sbb_textline_detector:ocrd_sbb_textline_detector",
+        "ocrd-sbb-crop=qurator.sbb_textline_detector:ocrd_sbb_crop",
       ]
     },
     python_requires='>=3.6.0',
