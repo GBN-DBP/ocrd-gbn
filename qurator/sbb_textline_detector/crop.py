@@ -100,29 +100,38 @@ class SbbCrop(Processor):
 
             page_image_cv2 = cv2.cvtColor(np.array(page_image_pil), cv2.COLOR_RGB2BGR)
 
-            scaled_image = self.scale_image(page_image_cv2)
+            #scaled_image = self.scale_image(page_image_cv2)
 
             self.kernel = np.ones((5, 5), np.uint8)
 
             self.session = init_session()
             self.model = load_model(self.parameter['model'])
 
-            x0, x1, y0, y1 = self.crop_page(scaled_image)
+            #x0, x1, y0, y1 = self.crop_page(scaled_image)
+            x0, x1, y0, y1 = self.crop_page(page_image_cv2)
 
             self.session.close()
 
-            scaled_x0 = int(x0 * self.scale_x)
-            scaled_x1 = int(x1 * self.scale_x)
-            scaled_y0 = int(y0 * self.scale_y)
-            scaled_y1 = int(y1 * self.scale_y)
+            #scaled_x0 = int(x0 * self.scale_x)
+            #scaled_x1 = int(x1 * self.scale_x)
+            #scaled_y0 = int(y0 * self.scale_y)
+            #scaled_y1 = int(y1 * self.scale_y)
 
-            box = (scaled_x0, scaled_y0, scaled_x1, scaled_y1)
+            #box = (scaled_x0, scaled_y0, scaled_x1, scaled_y1)
+            box = (x0, y0, x1, y1)
+
+            #polygon = [
+                #[scaled_x0, scaled_y0],
+                #[scaled_x1, scaled_y0],
+                #[scaled_x1, scaled_y1],
+                #[scaled_x0, scaled_y1]
+            #]
 
             polygon = [
-                [scaled_x0, scaled_y0],
-                [scaled_x1, scaled_y0],
-                [scaled_x1, scaled_y1],
-                [scaled_x0, scaled_y1]
+                [x0, y0],
+                [x1, y0],
+                [x1, y1],
+                [x0, y1]
             ]
 
             border_polygon = coordinates_for_segment(polygon, page_image_pil, page_xywh)
