@@ -24,6 +24,7 @@ setup(
     entry_points={
       'console_scripts': [
         "ocrd-sbb-crop=qurator.sbb_textline_detector:ocrd_sbb_crop",
+        "ocrd-sbb-segment-page=qurator.sbb_textline_detector:ocrd_sbb_segment_page",
       ]
     },
     python_requires='>=3.6.0',

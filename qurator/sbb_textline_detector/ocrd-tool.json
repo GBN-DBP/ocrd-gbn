@@ -25,6 +25,30 @@
           "description": "Path to page cropping model to be used (See https://qurator-data.de/sbb_textline_detector/)"
         }
       }
+    },
+    "ocrd-sbb-segment-page": {
+      "executable": "ocrd-sbb-segment-page",
+      "categories": [
+        "Layout analysis"
+      ],
+      "description": "Segments and classifies input page into text regions using deep learning",
+      "steps": [
+        "layout/segmentation/region"
+      ],
+      "input_file_grp": [
+        "OCR-D-BIN"
+      ],
+      "output_file_grp": [
+        "OCR-D-SEG-PAGE"
+      ],
+      "parameters": {
+        "model": {
+          "type": "string",
+          "format": "file",
+          "cacheable": true,
+          "description": "Path to page segmentation model to be used (See https://qurator-data.de/sbb_textline_detector/)"
+        }
+      }
     }
   }
 }
