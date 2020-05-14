@@ -23,9 +23,9 @@ setup(
     },
     entry_points={
       'console_scripts': [
-        "ocrd-gbn-sbb-predict=gbn.sbb:ocrd_gbn_sbb_predict",
-        "ocrd-gbn-sbb-page-segment=gbn.sbb:ocrd_gbn_sbb_page_segment",
-        "ocrd-gbn-sbb-region-segment=gbn.sbb:ocrd_gbn_sbb_region_segment",
+        "ocrd-gbn-sbb-predict=gbn:ocrd_gbn_sbb_predict",
+        "ocrd-gbn-sbb-page-segment=gbn:ocrd_gbn_sbb_page_segment",
+        "ocrd-gbn-sbb-region-segment=gbn:ocrd_gbn_sbb_region_segment",
       ]
     },
     python_requires='>=3.6.0',
