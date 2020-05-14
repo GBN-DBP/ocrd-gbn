@@ -1,4 +1,5 @@
 import json
+
 from pkg_resources import resource_string
 
 __all__ = ['OCRD_TOOL']

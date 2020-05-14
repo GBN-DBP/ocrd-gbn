@@ -1,0 +1,75 @@
+{
+  "version": "0.0.1",
+  "git_url": "https://github.com/sulzbals/gbn",
+  "tools": {
+    "ocrd-gbn-sbb-predict": {
+      "executable": "ocrd-gbn-sbb-predict",
+      "categories": [
+        "Layout analysis"
+      ],
+      "description": "Predicts pixels of input image as text or non-text given a model and outputs the labels given to each pixel as a binary image",
+      "steps": [
+        "layout/analysis"
+      ],
+      "input_file_grp": [
+        "OCR-D-BIN"
+      ],
+      "output_file_grp": [
+        "OCR-D-PREDICT"
+      ],
+      "parameters": {
+        "model": {
+          "type": "string",
+          "format": "file",
+          "cacheable": true,
+          "description": "Path of model to be run"
+        },
+        "operation_level": {
+          "type": "string",
+          "enum": [
+            "page",
+            "region",
+            "line"
+          ],
+          "default": "page",
+          "description": "PAGE XML hierarchy level to operate on"
+        }
+      }
+    },
+    "ocrd-gbn-sbb-page-segment": {
+      "executable": "ocrd-gbn-sbb-page-segment",
+      "categories": [
+        "Layout analysis"
+      ],
+      "description": "Segments text regions from input page given the predictions of both text regions and text lines as input",
+      "steps": [
+        "layout/segmentation/region"
+      ],
+      "input_file_grp": [
+        "OCR-D-PREDICT-PAGE-TXTREG",
+        "OCR-D-PREDICT-PAGE-TXTLINE"
+      ],
+      "output_file_grp": [
+        "OCR-D-SEG-PAGE"
+      ],
+      "parameters": {}
+    },
+    "ocrd-gbn-sbb-region-segment": {
+      "executable": "ocrd-gbn-sbb-region-segment",
+      "categories": [
+        "Layout analysis"
+      ],
+      "description": "Segments text lines from text regions of input page given the prediction of text lines as input",
+      "steps": [
+        "layout/segmentation/line"
+      ],
+      "input_file_grp": [
+        "OCR-D-PREDICT-REG-TXTLINE"
+      ],
+      "output_file_grp": [
+        "OCR-D-SEG-REG"
+      ],
+      "parameters": {}
+    }
+  }
+}

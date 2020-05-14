@@ -1,29 +1,7 @@
-# Textline Detection
-> Detect textlines in document images
+#  WIP: gbn - German-Brazilian Newspapers
 
-## Introduction
-This tool performs printspace, region and textline detection from document image
-data and returns the results as [PAGE-XML](https://github.com/PRImA-Research-Lab/PAGE-XML).
+Collection of [OCR-D](https://ocr-d.de) compliant tools for layout analysis and segmentation of historical documents from the [German-Brazilian Newspapers dataset](https://web.inf.ufpr.br/vri/databases/gbn). Forked from *Staatsbibliothek zu Berlin*'s [Textline Detector](https://github.com/qurator-spk/sbb_textline_detection).
 
-## Installation
-`pip install .`
+## Proposed Workflow
 
-### Models
-In order to run this tool you also need trained models. You can download our pretrained models from here:   
-https://qurator-data.de/sbb_textline_detector/
-
-## Usage
-`sbb_textline_detector -i <image file name> -o <directory to write output xml> -m <directory of models>`
-
-### Usage with OCR-D
-~~~
-ocrd-example-binarize -I OCR-D-IMG -O OCR-D-IMG-BIN
-ocrd-sbb-textline-detector -I OCR-D-IMG-BIN -O OCR-D-SEG-LINE-SBB \
-        -p '{ "model": "/path/to/the/models/textline_detection" }'
-~~~
-
-Segmentation works on raw RGB images, but respects and retains
-`AlternativeImage`s from binarization steps, so it's a good idea to do
-binarization first, then perform the textline detection. The used binarization
-processor must produce an `AlternativeImage` for the binarized image, not
-replace the original raw RGB image.
+![Workflow](workflow.png)
