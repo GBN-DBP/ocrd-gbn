@@ -247,6 +247,8 @@ class SbbSegmentPage(Processor):
 
             self.session.close()
 
+            page_image_cv2 = cv2.cvtColor(page_image_cv2_bin, cv2.COLOR_GRAY2BGR)
+
             for region, box in enumerate(boxes):
                 x0 = box[0]
                 y0 = box[1]
@@ -275,21 +277,21 @@ class SbbSegmentPage(Processor):
                     )
                 )
 
-                region_image_pil = crop_image(page_image_pil, box=(x0, y0, x1, y1))
+                cv2.rectangle(page_image_cv2, (x0, y0), (x1, y1), (0, 127, 0), 5)
 
-                file_id = input_file.ID.replace(self.input_file_grp, self.image_grp)
+            page_image_pil = Image.fromarray(cv2.cvtColor(page_image_cv2, cv2.COLOR_BGR2RGB))
 
-                if file_id == input_file.ID:
-                    file_id = concat_padded(self.image_grp, n)
+            file_id = input_file.ID.replace(self.input_file_grp, self.image_grp)
 
-                file_id += "_region%04d" % region
+            if file_id == input_file.ID:
+                file_id = concat_padded(self.image_grp, n)
 
-                self.workspace.save_image_file(
-                    region_image_pil,
-                    file_id,
-                    page_id=page_id,
-                    file_grp=self.image_grp
-                )
+            self.workspace.save_image_file(
+                page_image_pil,
+                file_id,
+                page_id=page_id,
+                file_grp=self.image_grp
+            )
 
             # Save metadata about this operation
             metadata = pcgts.get_Metadata()
