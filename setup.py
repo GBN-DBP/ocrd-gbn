@@ -23,6 +23,7 @@ setup(
     },
     entry_points={
       'console_scripts': [
+        "ocrd-gbn-mask=gbn:ocrd_gbn_mask",
         "ocrd-gbn-sbb-predict=gbn:ocrd_gbn_sbb_predict",
         "ocrd-gbn-sbb-page-segment=gbn:ocrd_gbn_sbb_page_segment",
         "ocrd-gbn-sbb-region-segment=gbn:ocrd_gbn_sbb_region_segment",
