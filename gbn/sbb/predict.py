@@ -3,20 +3,20 @@ from gbn.sbb.common import init_session, load_model
 
 from ocrd import Processor
 from ocrd_modelfactory import page_from_file
-from ocrd_models import OcrdFile
 from ocrd_models.ocrd_page import to_xml
-from ocrd_models.ocrd_page_generateds import AlternativeImageType, MetadataItemType, LabelsType, LabelType
+from ocrd_models.ocrd_page_generateds import AlternativeImageType, LabelsType, LabelType, MetadataItemType
 from ocrd_utils import concat_padded, getLogger, MIMETYPE_PAGE
 
 import os.path
+import math
 import cv2
 import numpy as np
-import PIL
+import PIL.Image
 
-TOOL = 'ocrd-gbn-sbb-predict'
+TOOL = "ocrd-gbn-sbb-predict"
 
-LOG = getLogger('processor.Predict')
-FALLBACK_FILEGRP_IMG = 'OCR-D-IMG-PREDICT'
+LOG = getLogger("processor.Predict")
+FALLBACK_FILEGRP_IMG = "OCR-D-IMG-PREDICT"
 
 class Predict(Processor):
 
@@ -24,15 +24,15 @@ class Predict(Processor):
         kwargs['ocrd_tool'] = OCRD_TOOL['tools'][TOOL]
         kwargs['version'] = OCRD_TOOL['version']
         super(Predict, self).__init__(*args, **kwargs)
-        if hasattr(self, 'output_file_grp'):
-            try:
-                self.page_grp, self.image_grp = self.output_file_grp.split(',')
-            except ValueError:
-                self.page_grp = self.output_file_grp
-                self.image_grp = FALLBACK_FILEGRP_IMG
-                LOG.info("No output file group for images specified, falling back to '%s'", FALLBACK_FILEGRP_IMG)
 
-    def predict(self, image, model):
+        try:
+            self.page_grp, self.image_grp = self.output_file_grp.split(',')
+        except ValueError:
+            self.page_grp = self.output_file_grp
+            self.image_grp = FALLBACK_FILEGRP_IMG
+            LOG.info("No output file group for images specified, falling back to '%s'", FALLBACK_FILEGRP_IMG)
+
+    def predict_patch_border(self, image, model):
         # Get model input dimensions:
         model_h = model.layers[-1].output_shape[1]
         model_w = model.layers[-1].output_shape[2]
@@ -90,6 +90,137 @@ class Predict(Processor):
         # Remove padding and return prediction image:
         return canvas[:img_h, :img_w].astype(np.uint8)
 
+    def predict_patch(self, image, model):
+        img_height_model = model.layers[-1].output_shape[1]
+        img_width_model = model.layers[-1].output_shape[2]
+
+        margin = int(0.1 * img_width_model)
+
+        width_mid = img_width_model - 2 * margin
+        height_mid = img_height_model - 2 * margin
+
+        img = image / 255.0
+
+        img_h = img.shape[0]
+        img_w = img.shape[1]
+
+        prediction_true = np.zeros((img_h, img_w, 3))
+
+        mask_true = np.zeros((img_h, img_w))
+
+        nxf = math.ceil(img_w / float(width_mid))
+        nyf = math.ceil(img_h / float(height_mid))
+
+        for i in range(nxf):
+            for j in range(nyf):
+                index_x_d = i * width_mid
+                index_x_u = index_x_d + img_width_model
+
+                index_y_d = j * height_mid
+                index_y_u = index_y_d + img_height_model
+
+                if index_x_u > img_w:
+                    index_x_u = img_w
+                    index_x_d = img_w - img_width_model
+                if index_y_u > img_h:
+                    index_y_u = img_h
+                    index_y_d = img_h - img_height_model
+
+                img_patch = img[index_y_d:index_y_u, index_x_d:index_x_u, :]
+
+                label_p_pred = model.predict(img_patch.reshape(1, img_patch.shape[0], img_patch.shape[1], img_patch.shape[2]))
+
+                seg = np.argmax(label_p_pred, axis=3)[0]
+                seg_color = np.repeat(seg[:, :, np.newaxis], 3, axis=2)
+
+                if i==0 and j==0:
+                    seg_color = seg_color[0:seg_color.shape[0] - margin, 0:seg_color.shape[1] - margin, :]
+                    seg = seg[0:seg.shape[0] - margin, 0:seg.shape[1] - margin]
+
+                    mask_true[index_y_d + 0:index_y_u - margin, index_x_d + 0:index_x_u - margin] = seg
+                    prediction_true[index_y_d + 0:index_y_u - margin, index_x_d + 0:index_x_u - margin,
+                    :] = seg_color
+                        
+                elif i==nxf-1 and j==nyf-1:
+                    seg_color = seg_color[margin:seg_color.shape[0] - 0, margin:seg_color.shape[1] - 0, :]
+                    seg = seg[margin:seg.shape[0] - 0, margin:seg.shape[1] - 0]
+
+                    mask_true[index_y_d + margin:index_y_u - 0, index_x_d + margin:index_x_u - 0] = seg
+                    prediction_true[index_y_d + margin:index_y_u - 0, index_x_d + margin:index_x_u - 0,
+                    :] = seg_color
+                        
+                elif i==0 and j==nyf-1:
+                    seg_color = seg_color[margin:seg_color.shape[0] - 0, 0:seg_color.shape[1] - margin, :]
+                    seg = seg[margin:seg.shape[0] - 0, 0:seg.shape[1] - margin]
+
+                    mask_true[index_y_d + margin:index_y_u - 0, index_x_d + 0:index_x_u - margin] = seg
+                    prediction_true[index_y_d + margin:index_y_u - 0, index_x_d + 0:index_x_u - margin,
+                    :] = seg_color
+                        
+                elif i==nxf-1 and j==0:
+                    seg_color = seg_color[0:seg_color.shape[0] - margin, margin:seg_color.shape[1] - 0, :]
+                    seg = seg[0:seg.shape[0] - margin, margin:seg.shape[1] - 0]
+
+                    mask_true[index_y_d + 0:index_y_u - margin, index_x_d + margin:index_x_u - 0] = seg
+                    prediction_true[index_y_d + 0:index_y_u - margin, index_x_d + margin:index_x_u - 0,
+                    :] = seg_color
+                        
+                elif i==0 and j!=0 and j!=nyf-1:
+                    seg_color = seg_color[margin:seg_color.shape[0] - margin, 0:seg_color.shape[1] - margin, :]
+                    seg = seg[margin:seg.shape[0] - margin, 0:seg.shape[1] - margin]
+
+                    mask_true[index_y_d + margin:index_y_u - margin, index_x_d + 0:index_x_u - margin] = seg
+                    prediction_true[index_y_d + margin:index_y_u - margin, index_x_d + 0:index_x_u - margin,
+                    :] = seg_color
+                        
+                elif i==nxf-1 and j!=0 and j!=nyf-1:
+                    seg_color = seg_color[margin:seg_color.shape[0] - margin, margin:seg_color.shape[1] - 0, :]
+                    seg = seg[margin:seg.shape[0] - margin, margin:seg.shape[1] - 0]
+
+                    mask_true[index_y_d + margin:index_y_u - margin, index_x_d + margin:index_x_u - 0] = seg
+                    prediction_true[index_y_d + margin:index_y_u - margin, index_x_d + margin:index_x_u - 0,
+                    :] = seg_color
+                        
+                elif i!=0 and i!=nxf-1 and j==0:
+                    seg_color = seg_color[0:seg_color.shape[0] - margin, margin:seg_color.shape[1] - margin, :]
+                    seg = seg[0:seg.shape[0] - margin, margin:seg.shape[1] - margin]
+
+                    mask_true[index_y_d + 0:index_y_u - margin, index_x_d + margin:index_x_u - margin] = seg
+                    prediction_true[index_y_d + 0:index_y_u - margin, index_x_d + margin:index_x_u - margin,
+                    :] = seg_color
+                        
+                elif i!=0 and i!=nxf-1 and j==nyf-1:
+                    seg_color = seg_color[margin:seg_color.shape[0] - 0, margin:seg_color.shape[1] - margin, :]
+                    seg = seg[margin:seg.shape[0] - 0, margin:seg.shape[1] - margin]
+
+                    mask_true[index_y_d + margin:index_y_u - 0, index_x_d + margin:index_x_u - margin] = seg
+                    prediction_true[index_y_d + margin:index_y_u - 0, index_x_d + margin:index_x_u - margin,
+                    :] = seg_color
+
+                else:
+                    seg_color = seg_color[margin:seg_color.shape[0] - margin, margin:seg_color.shape[1] - margin, :]
+                    seg = seg[margin:seg.shape[0] - margin, margin:seg.shape[1] - margin]
+
+                    mask_true[index_y_d + margin:index_y_u - margin, index_x_d + margin:index_x_u - margin] = seg
+                    prediction_true[index_y_d + margin:index_y_u - margin, index_x_d + margin:index_x_u - margin,
+                    :] = seg_color
+
+        return prediction_true.astype(np.uint8)
+
+    def predict_whole(self, image, model):
+        img_height_model = model.layers[-1].output_shape[1]
+        img_width_model = model.layers[-1].output_shape[2]
+
+        img = cv2.resize(image / 255.0, (img_width_model, img_height_model), interpolation=cv2.INTER_NEAREST)
+
+        # Encapsulate image array inside a single-element array:
+        label_p_pred = model.predict(img.reshape(1, img.shape[0], img.shape[1], img.shape[2]))
+
+        seg = np.argmax(label_p_pred, axis=3)[0]
+        seg_color = np.repeat(seg[:, :, np.newaxis], 3, axis=2)
+
+        return cv2.resize(seg_color, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST).astype(np.uint8)
+
     def process(self):
         for (n, input_file) in enumerate(self.input_files):
             LOG.info("Processing input file: %i / %s", n, input_file)
@@ -99,32 +230,30 @@ class Predict(Processor):
             pcgts = page_from_file(self.workspace.download_file(input_file))
             page = pcgts.get_Page()
 
-            # Get image from PAGE (must have been binarized):
-            page_image, page_xywh, _ = self.workspace.image_from_page(page, page_id, feature_selector="binarized")
+            # Get image from PAGE:
+            page_image, page_xywh, _ = self.workspace.image_from_page(page, page_id)
 
-            # Convert PIL image array to Numpy array (for OpenCV) and map pixels to grayscale:
-            page_image = np.array(page_image, dtype=np.uint8) * 255
-
-            # TODO: Model requires 3 channels, while 1 would be enough since the input image is binary:
-            def triplicate_channel(img):
-                res = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
-                res[:, :, 0] = img
-                res[:, :, 1] = img
-                res[:, :, 2] = img
-                return res
-
-            page_image = triplicate_channel(page_image)
+            # Convert PIL image array to RGB then to Numpy array then to BGR (for OpenCV):
+            page_image = cv2.cvtColor(np.array(page_image.convert('RGB'), dtype=np.uint8), cv2.COLOR_RGB2BGR)
 
             session = init_session()
             model = load_model(self.parameter['model'])
 
             # Get labels per-pixel and map them to grayscale:
-            predict_image = self.predict(page_image, model) * 255
+            if self.parameter['prediction_method'] == "whole":
+                # Whole image is passed to model:
+                predict_image = self.predict_whole(page_image, model) * 255
+            elif self.parameter['prediction_method'] == "patches":
+                # Image split in patches and passed to model (original algorithm from SBB - best for text regions):
+                predict_image = self.predict_patch(page_image, model) * 255
+            else:
+                # Image split in patches and passed to model (new algorithm - best for text lines):
+                predict_image = self.predict_patch_border(page_image, model) * 255
 
             session.close()
 
-            # Convert OpenCV image array (Numpy) to PIL image array:
-            predict_image = PIL.Image.fromarray(predict_image)
+            # Convert OpenCV image array (Numpy) to PIL image array then to 1-bit grayscale:
+            predict_image = PIL.Image.fromarray(predict_image).convert('1')
 
             # Add metadata about this operation:
             metadata = pcgts.get_Metadata()
@@ -154,6 +283,7 @@ class Predict(Processor):
             if file_id == input_file.ID:
                 file_id = concat_padded(self.image_grp, n)
 
+            # Concatenate model name to ID:
             file_id += "_" + os.path.splitext(os.path.basename(self.parameter['model']))[0]
 
             # Save image:
