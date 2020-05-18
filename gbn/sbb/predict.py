@@ -25,12 +25,13 @@ class Predict(Processor):
         kwargs['version'] = OCRD_TOOL['version']
         super(Predict, self).__init__(*args, **kwargs)
 
-        try:
-            self.page_grp, self.image_grp = self.output_file_grp.split(',')
-        except ValueError:
-            self.page_grp = self.output_file_grp
-            self.image_grp = FALLBACK_FILEGRP_IMG
-            LOG.info("No output file group for images specified, falling back to '%s'", FALLBACK_FILEGRP_IMG)
+        if hasattr(self, "output_file_grp"):
+            try:
+                self.page_grp, self.image_grp = self.output_file_grp.split(',')
+            except ValueError:
+                self.page_grp = self.output_file_grp
+                self.image_grp = FALLBACK_FILEGRP_IMG
+                LOG.info("No output file group for images specified, falling back to '%s'", FALLBACK_FILEGRP_IMG)
 
     def predict_patch_border(self, image, model):
         # Get model input dimensions:

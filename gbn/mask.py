@@ -22,28 +22,29 @@ class Mask(Processor):
         kwargs['version'] = OCRD_TOOL['version']
         super(Mask, self).__init__(*args, **kwargs)
 
-        self.input_file_grps = self.input_file_grp.split(',')
-        self.output_file_grps = self.output_file_grp.split(',')
+        if hasattr(self, "input_file_grp"):
+            self.input_file_grps = self.input_file_grp.split(',')
+            self.output_file_grps = self.output_file_grp.split(',')
 
-        # Last input group must be the mask group:
-        self.mask_grp = self.input_file_grps.pop()
+            # Last input group must be the mask group:
+            self.mask_grp = self.input_file_grps.pop()
 
-        if not self.input_file_grps:
-            LOG.error("At least two input groups required (page_group_0, ..., page_group_n, mask_group)")
-            quit()
+            if not self.input_file_grps:
+                LOG.error("At least two input groups required (page_group_0, ..., page_group_n, mask_group)")
+                quit()
 
-        # If output group number matches input group number:
-        if len(self.output_file_grps) == len(self.input_file_grps):
-            # Image group not specified:
-            self.image_grp = FALLBACK_FILEGRP_IMG
-            LOG.info("No output file group for images specified, falling back to '%s'", FALLBACK_FILEGRP_IMG)
-        # If extra output group:
-        elif len(self.output_file_grps) == len(self.input_file_grps) + 1:
-            # Image group specified:
-            self.image_grp = self.output_file_grps.pop()
-        else:
-            LOG.error("Input/Output group number mismatch (must be equal)")
-            quit()
+            # If output group number matches input group number:
+            if len(self.output_file_grps) == len(self.input_file_grps):
+                # Image group not specified:
+                self.image_grp = FALLBACK_FILEGRP_IMG
+                LOG.info("No output file group for images specified, falling back to '%s'", FALLBACK_FILEGRP_IMG)
+            # If extra output group:
+            elif len(self.output_file_grps) == len(self.input_file_grps) + 1:
+                # Image group specified:
+                self.image_grp = self.output_file_grps.pop()
+            else:
+                LOG.error("Input/Output group number mismatch (must be equal)")
+                quit()
 
     @property
     def mask_files(self):

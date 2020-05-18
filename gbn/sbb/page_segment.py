@@ -23,18 +23,19 @@ class PageSegment(Processor):
         kwargs['version'] = OCRD_TOOL['version']
         super(PageSegment, self).__init__(*args, **kwargs)
 
-        try:
-            self.input_file_grp, self.txtreg_grp, self.txtline_grp = self.input_file_grp.split(',')
-        except ValueError:
-            LOG.error("Three input groups required (input_group, txtreg_group, txtline_group)")
-            quit()
+        if hasattr(self, "input_file_grp"):
+            try:
+                self.input_file_grp, self.txtreg_grp, self.txtline_grp = self.input_file_grp.split(',')
+            except ValueError:
+                LOG.error("Three input groups required (input_group, txtreg_group, txtline_group)")
+                quit()
 
-        try:
-            self.page_grp, self.image_grp = self.output_file_grp.split(',')
-        except ValueError:
-            self.page_grp = self.output_file_grp
-            self.image_grp = FALLBACK_FILEGRP_IMG # DEBUG ONLY
-            LOG.info("No output file group for images specified, falling back to '%s'", FALLBACK_FILEGRP_IMG)
+            try:
+                self.page_grp, self.image_grp = self.output_file_grp.split(',')
+            except ValueError:
+                self.page_grp = self.output_file_grp
+                self.image_grp = FALLBACK_FILEGRP_IMG # DEBUG ONLY
+                LOG.info("No output file group for images specified, falling back to '%s'", FALLBACK_FILEGRP_IMG)
 
     @property
     def txtreg_files(self):
