@@ -2,20 +2,48 @@
   "version": "0.0.1",
   "git_url": "https://github.com/sulzbals/gbn",
   "tools": {
-    "ocrd-gbn-sbb-predict": {
-      "executable": "ocrd-gbn-sbb-predict",
+    "ocrd-gbn-mask": {
+      "executable": "ocrd-gbn-mask",
       "categories": [
-        "Layout analysis"
+        "Image preprocessing"
       ],
-      "description": "Predicts pixels of input image as text or non-text given a model and outputs the labels given to each pixel as a binary image",
+      "description": "Applies a mask (represented as a binary, black-and-white image) on the binarized input page",
       "steps": [
-        "layout/analysis"
+        "preprocessing/optimization"
       ],
       "input_file_grp": [
         "OCR-D-BIN"
       ],
       "output_file_grp": [
-        "OCR-D-PRED"
+        "OCR-D-MASK"
+      ],
+      "parameters": {
+        "bg_color": {
+          "type": "string",
+          "enum": [
+            "black",
+            "white"
+          ],
+          "default": "black",
+          "description": "Background color, to be set to the pixels of the output page not belonging to the mask"
+        }
+      }
+    },
+    "ocrd-gbn-sbb-predict": {
+      "executable": "ocrd-gbn-sbb-predict",
+      "categories": [
+        "Layout analysis"
+      ],
+      "description": "Predicts pixels of input image given a model and outputs the labels given to each pixel as a binary image",
+      "steps": [
+        "layout/analysis"
+      ],
+      "input_file_grp": [
+        "OCR-D-IMG",
+        "OCR-D-BIN"
+      ],
+      "output_file_grp": [
+        "OCR-D-PREDICT"
       ],
       "parameters": {
         "model": {
@@ -46,43 +74,17 @@
         }
       }
     },
-    "ocrd-gbn-mask": {
-      "executable": "ocrd-gbn-mask",
-      "categories": [
-        "Image preprocessing"
-      ],
-      "description": "Applies a mask (represented as a binary, black-and-white image) in the binarized input page",
-      "steps": [
-        "preprocessing/optimization/cropping"
-      ],
-      "input_file_grp": [
-        "OCR-D-BIN"
-      ],
-      "output_file_grp": [
-        "OCR-D-MASK"
-      ],
-      "parameters": {
-        "bg_color": {
-          "type": "string",
-          "enum": [
-            "black",
-            "white"
-          ],
-          "default": "black",
-          "description": "Background color, or color of the non-masked pixels of the output page"
-        }
-      }
-    },
     "ocrd-gbn-sbb-page-segment": {
       "executable": "ocrd-gbn-sbb-page-segment",
       "categories": [
         "Layout analysis"
       ],
-      "description": "Segments text regions from input page given the predictions of both text regions and text lines as input",
+      "description": "Segments text regions from the binarized input page given the predictions of the text regions and text lines",
       "steps": [
         "layout/segmentation/region"
       ],
       "input_file_grp": [
+        "OCR-D-BIN",
         "OCR-D-PREDICT-PAGE-TXTREG",
         "OCR-D-PREDICT-PAGE-TXTLINE"
       ],
