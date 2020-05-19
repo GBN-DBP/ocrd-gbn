@@ -234,27 +234,121 @@ class Predict(Processor):
             # Get image from PAGE:
             page_image, page_xywh, _ = self.workspace.image_from_page(page, page_id)
 
-            # Convert PIL image array to RGB then to Numpy array then to BGR (for OpenCV):
-            page_image = cv2.cvtColor(np.array(page_image.convert('RGB'), dtype=np.uint8), cv2.COLOR_RGB2BGR)
+            if self.parameter['operation_level'] == "page":
+                # Convert PIL image array to RGB then to Numpy array then to BGR (for OpenCV):
+                page_image = cv2.cvtColor(np.array(page_image.convert('RGB'), dtype=np.uint8), cv2.COLOR_RGB2BGR)
 
-            session = init_session()
-            model = load_model(self.parameter['model'])
+                session = init_session()
+                model = load_model(self.parameter['model'])
 
-            # Get labels per-pixel and map them to grayscale:
-            if self.parameter['prediction_method'] == "whole":
-                # Whole image is passed to model:
-                predict_image = self.predict_whole(page_image, model) * 255
-            elif self.parameter['prediction_method'] == "patches":
-                # Image split in patches and passed to model (original algorithm from SBB - best for text regions):
-                predict_image = self.predict_patch(page_image, model) * 255
+                # Get labels per-pixel and map them to grayscale:
+                if self.parameter['prediction_method'] == "whole":
+                    # Whole image is passed to model:
+                    predict_image = self.predict_whole(page_image, model) * 255
+                elif self.parameter['prediction_method'] == "patches":
+                    # Image split in patches and passed to model (original algorithm from SBB - best for text regions):
+                    predict_image = self.predict_patch(page_image, model) * 255
+                else:
+                    # Image split in patches and passed to model (new algorithm - best for text lines):
+                    predict_image = self.predict_patch_border(page_image, model) * 255
+
+                session.close()
+
+                # Convert OpenCV image array (Numpy) to PIL image array then to 1-bit grayscale:
+                predict_image = PIL.Image.fromarray(predict_image).convert('1')
+
+                # Get file ID of image to be saved:
+                file_id = input_file.ID.replace(self.input_file_grp, self.image_grp)
+
+                if file_id == input_file.ID:
+                    file_id = concat_padded(self.image_grp, n)
+
+                # Concatenate model name to ID:
+                file_id += "_" + os.path.splitext(os.path.basename(self.parameter['model']))[0]
+
+                # Save image:
+                file_path = self.workspace.save_image_file(
+                    predict_image,
+                    file_id,
+                    page_id=page_id,
+                    file_grp=self.image_grp
+                )
+
+                # Add metadata about saved image:
+                page.add_AlternativeImage(
+                    AlternativeImageType(
+                        filename=file_path,
+                        comments=page_xywh['features']
+                    )
+                )
+            elif self.parameter['operation_level'] == "region":
+                regions = page.get_TextRegion()
+
+                for idx, region in enumerate(regions):
+                    # Get image from text region:
+                    region_image, _ = self.workspace.image_from_segment(region, page_image, page_xywh)
+
+                    # Remove alpha channel from image, if there is one:
+                    if region_image.mode == 'LA' or region_image.mode == 'RGBA':
+                        # Ensure RGBA:
+                        region_image = region_image.convert('RGBA')
+
+                        alpha = region_image.getchannel('A')
+
+                        # Paste image on a white canvas:
+                        canvas = PIL.Image.new('RGBA', region_image.size, 255)
+                        canvas.paste(region_image, mask=alpha)
+
+                        region_image = canvas
+
+                    # Convert PIL image array to RGB then to Numpy array then to BGR (for OpenCV):
+                    region_image = cv2.cvtColor(np.array(region_image.convert('RGB'), dtype=np.uint8), cv2.COLOR_RGB2BGR)
+
+                    session = init_session()
+                    model = load_model(self.parameter['model'])
+
+                    # Get labels per-pixel and map them to grayscale:
+                    if self.parameter['prediction_method'] == "whole":
+                        # Whole image is passed to model:
+                        predict_image = self.predict_whole(region_image, model) * 255
+                    elif self.parameter['prediction_method'] == "patches":
+                        # Old method does not pad image, so it will raise an exception if the region is too small
+                        raise NotImplementedError
+                    else:
+                        # Image split in patches and passed to model (new algorithm - best for text lines):
+                        predict_image = self.predict_patch_border(region_image, model) * 255
+
+                    session.close()
+
+                    # Convert OpenCV image array (Numpy) to PIL image array then to 1-bit grayscale:
+                    predict_image = PIL.Image.fromarray(predict_image).convert('1')
+
+                    # Get file ID of image to be saved:
+                    file_id = input_file.ID.replace(self.input_file_grp, self.image_grp)
+
+                    if file_id == input_file.ID:
+                        file_id = concat_padded(self.image_grp, n)
+
+                    # Concatenate region number and model name to ID:
+                    file_id += "_region%04d" % idx  + "_" + os.path.splitext(os.path.basename(self.parameter['model']))[0]
+
+                    # Save image:
+                    file_path = self.workspace.save_image_file(
+                        predict_image,
+                        file_id,
+                        page_id=page_id,
+                        file_grp=self.image_grp
+                    )
+
+                    # Add metadata about saved image:
+                    page.add_AlternativeImage(
+                        AlternativeImageType(
+                            filename=file_path,
+                            comments=page_xywh['features']
+                        )
+                    )
             else:
-                # Image split in patches and passed to model (new algorithm - best for text lines):
-                predict_image = self.predict_patch_border(page_image, model) * 255
-
-            session.close()
-
-            # Convert OpenCV image array (Numpy) to PIL image array then to 1-bit grayscale:
-            predict_image = PIL.Image.fromarray(predict_image).convert('1')
+                raise NotImplementedError
 
             # Add metadata about this operation:
             metadata = pcgts.get_Metadata()
@@ -275,31 +369,6 @@ class Predict(Processor):
                             ]
                         )
                     ]
-                )
-            )
-
-            # Get file ID of image to be saved:
-            file_id = input_file.ID.replace(self.input_file_grp, self.image_grp)
-
-            if file_id == input_file.ID:
-                file_id = concat_padded(self.image_grp, n)
-
-            # Concatenate model name to ID:
-            file_id += "_" + os.path.splitext(os.path.basename(self.parameter['model']))[0]
-
-            # Save image:
-            file_path = self.workspace.save_image_file(
-                predict_image,
-                file_id,
-                page_id=page_id,
-                file_grp=self.image_grp
-            )
-
-            # Add metadata about saved image:
-            page.add_AlternativeImage(
-                AlternativeImageType(
-                    filename=file_path,
-                    comments=page_xywh['features']
                 )
             )
 
