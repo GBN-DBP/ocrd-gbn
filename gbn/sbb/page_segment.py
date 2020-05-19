@@ -51,83 +51,84 @@ class PageSegment(Processor):
         """
         return self.workspace.mets.find_files(fileGrp=self.txtline_grp, pageId=self.page_id)
 
-    def textline_filter(self, boxes, predict_image):
+    def geometry_filter(self, contours):
+        '''
+        Filters out contours that do not compose valid polygons
+        '''
+        filtered = []
+
+        for contour in contours:
+            # Polygons must have at least 3 vertices:
+            if len(contour) >= 3:
+                filtered.append(contour)
+
+        return filtered
+
+    def hierarchy_filter(self, contours, hierarchy):
+        '''
+        Filters out contours that contain inner contours (child contours)
+        '''
+        filtered = []
+
+        for idx in range(len(contours)):
+            # If 'First Child' field of contours does not point to another contour:
+            if hierarchy[0][idx][3] == -1:
+                filtered.append(contours[idx])
+
+        return filtered
+
+    def particle_size_filter(self, polygons, min_area, max_area):
+        '''
+        Filters out polygons whose area is too small or too big
+        '''
+        filtered = []
+
+        for polygon in polygons:
+            if polygon.area >= min_area and polygon.area <= max_area:
+                filtered.append(polygon)
+
+        return filtered
+
+    def foreground_density_filter(self, img, boxes, min_density, max_density, fg_color):
+        '''
+        Filters out boxes that when sliced from the given image generate chunks with too small or too big foreground density
+        '''
         filtered = []
 
         for box in boxes:
-            x0 = box[0]
-            y0 = box[1]
-            x1 = box[0] + box[2]
-            y1 = box[1] + box[3]
+            # Slice chunk from image:
+            chunk = img[box[1]:box[1]+box[3], box[0]:box[0]+box[2]]
 
-            chunk = predict_image[y0:y1, x0:x1]
+            total_pixels = chunk.shape[0] * chunk.shape[1]
+            fg_pixels = np.count_nonzero(chunk == fg_color)
 
-            area = chunk.shape[0] * chunk.shape[1]
-            positives = np.count_nonzero(chunk[:, :] == 255)
+            density = fg_pixels / total_pixels
 
-            if positives / area >= self.parameter['min_textline_density']:
+            if density >= min_density and density <= max_density:
                 filtered.append(box)
 
         return filtered
 
-    def foreground_filter(self, boxes, page_image, predict_image):
-        filtered = []
+    def extract_contours(self, predict_image):
+        # Smooth shapes:
+        predict_image = cv2.erode(predict_image, self.kernel, iterations=4)
+        predict_image = cv2.dilate(predict_image, self.kernel, iterations=4)
 
-        for box in boxes:
-            x0 = box[0]
-            y0 = box[1]
-            x1 = box[0] + box[2]
-            y1 = box[1] + box[3]
+        return cv2.findContours(predict_image, cv2.cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-            bin_chunk = page_image[y0:y1, x0:x1]
-            pred_chunk = (predict_image[y0:y1, x0:x1] / 255).astype(np.bool_)
+    def extract_polygons(self, contours):
+        polygons = []
 
-            area = bin_chunk[pred_chunk == False].shape[0]
-            positives = np.count_nonzero(bin_chunk[pred_chunk == False] == 0)
+        for contour in contours:
+            polygons.append(geometry.Polygon([point[0] for point in contour]))
 
-            if positives / area <= self.parameter['max_foreground_density']:
-                filtered.append(box)
+        return polygons
 
-        return filtered
-
-    def segment_page(self, predict_image):
-        regions = cv2.cvtColor((predict_image / 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
-        regions = cv2.erode(regions, self.kernel, iterations=3)
-        regions = cv2.dilate(regions, self.kernel, iterations=4)
-
-        text_class = (1, 1, 1)
-        mask_texts = np.all(regions == text_class, axis=-1)
-
-        image = np.repeat(mask_texts[:, :, np.newaxis], 3, axis=2) * 255
-        image = image.astype(np.uint8)
-
-        image = cv2.morphologyEx(image, cv2.MORPH_OPEN, self.kernel)
-        image = cv2.morphologyEx(image, cv2.MORPH_CLOSE, self.kernel)
-
-        imgray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        _, thresh = cv2.threshold(imgray, 0, 255, 0)
-
-        contours, hierarchy = cv2.findContours(thresh.copy(), cv2.cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        
-        main_contours = list()
-
-        jv = 0
-        for c in contours:
-            if len(c) < 3:  # A polygon cannot have less than 3 points
-                continue
-
-            polygon = geometry.Polygon([point[0] for point in c])
-            area = polygon.area
-            if area >= 0.00001 * np.prod(thresh.shape[:2]) and area <= 1 * np.prod(
-                    thresh.shape[:2]) and hierarchy[0][jv][3] == -1 :
-                main_contours.append(
-                    np.array([ [point] for point in polygon.exterior.coords], dtype=np.uint))
-            jv += 1
-
+    def extract_boxes(self, polygons):
         boxes = []
         
-        for jj in range(len(main_contours)):
-            x, y, w, h = cv2.boundingRect(main_contours[jj])
+        for polygon in polygons:
+            x, y, w, h = cv2.boundingRect(np.array([[point] for point in polygon.exterior.coords], dtype=np.uint))
             boxes.append([x, y, w, h])
 
         return boxes
@@ -184,14 +185,44 @@ class PageSegment(Processor):
             # TODO: Unhardcode this:
             self.kernel = np.ones((5, 5), np.uint8)
 
-            # Retrieve bounding boxes of segmented regions:
-            boxes = self.segment_page(txtreg)
+            # Retrieve contours of segmented regions:
+            contours, hierarchy = self.extract_contours(txtreg)
 
-            # Apply textline density filter:
-            boxes = self.textline_filter(boxes, txtline)
+            # Filter out non-polygons:
+            contours = self.geometry_filter(contours)
 
-            # Apply foreground density filter:
-            boxes = self.foreground_filter(boxes, page_image, txtline)
+            # Filter out non-leaves (contours with child contours):
+            contours = self.hierarchy_filter(contours, hierarchy)
+
+            polygons = self.extract_polygons(contours)
+
+            # Filter out small/big particles:
+            area = page_image.shape[0] * page_image.shape[1]
+            contours = self.particle_size_filter(
+                polygons,
+                self.parameter['min_particle_size'] * area,
+                self.parameter['max_particle_size'] * area
+            )
+
+            boxes = self.extract_boxes(polygons)
+
+            # Filter out regions with big/small textline density (white foreground):
+            boxes = self.foreground_density_filter(
+                txtline,
+                boxes,
+                self.parameter['min_textline_density'],
+                self.parameter['max_textline_density'],
+                255
+            )
+
+            # Filter out regions with big/small foreground density (black foreground):
+            boxes = self.foreground_density_filter(
+                page_image,
+                boxes,
+                self.parameter['min_foreground_density'],
+                self.parameter['max_foreground_density'],
+                0
+            )
 
             # DEBUG ONLY
             txtline_mask = (txtline / 255).astype(np.bool_)

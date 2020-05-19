@@ -92,10 +92,30 @@
         "OCR-D-SEG-PAGE"
       ],
       "parameters": {
+        "min_particle_size": {
+          "type": "number",
+          "default": 0.00001,
+          "description": "Minimum ratio of the total page area for a particle to be considered a text region"
+        },
+        "max_particle_size": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Maximum ratio of the total page area for a particle to be considered a text region"
+        },
         "min_textline_density": {
           "type": "number",
           "default": 0.05,
           "description": "Minimum ratio of detected text line pixels of a bounding box for it to be considered a text region"
+        },
+        "max_textline_density": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Maximum ratio of detected text line pixels of a bounding box for it to be considered a text region"
+        },
+        "min_foreground_density": {
+          "type": "number",
+          "default": 0.05,
+          "description": "Minimum ratio of foreground (black) pixels of a bounding box for it to be considered a text region"
         },
         "max_foreground_density": {
           "type": "number",
