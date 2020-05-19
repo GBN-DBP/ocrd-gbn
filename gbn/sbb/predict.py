@@ -1,5 +1,4 @@
 from gbn.tool import OCRD_TOOL
-from gbn.sbb.common import init_session, load_model
 
 from ocrd import Processor
 from ocrd_modelfactory import page_from_file
@@ -12,6 +11,8 @@ import math
 import cv2
 import numpy as np
 import PIL.Image
+import tensorflow as tf
+import keras.models
 
 TOOL = "ocrd-gbn-sbb-predict"
 
@@ -32,6 +33,16 @@ class Predict(Processor):
                 self.page_grp = self.output_file_grp
                 self.image_grp = FALLBACK_FILEGRP_IMG
                 LOG.info("No output file group for images specified, falling back to '%s'", FALLBACK_FILEGRP_IMG)
+
+    def init_session(self):
+        cfg = tf.ConfigProto()
+
+        cfg.gpu_options.allow_growth = True
+
+        return tf.InteractiveSession()
+
+    def load_model(self, model_path):
+        return keras.models.load_model(model_path, compile=False)
 
     def predict_patch_border(self, image, model):
         # Get model input dimensions:
@@ -238,8 +249,8 @@ class Predict(Processor):
                 # Convert PIL image array to RGB then to Numpy array then to BGR (for OpenCV):
                 page_image = cv2.cvtColor(np.array(page_image.convert('RGB'), dtype=np.uint8), cv2.COLOR_RGB2BGR)
 
-                session = init_session()
-                model = load_model(self.parameter['model'])
+                session = self.init_session()
+                model = self.load_model(self.parameter['model'])
 
                 # Get labels per-pixel and map them to grayscale:
                 if self.parameter['prediction_method'] == "whole":
@@ -304,8 +315,8 @@ class Predict(Processor):
                     # Convert PIL image array to RGB then to Numpy array then to BGR (for OpenCV):
                     region_image = cv2.cvtColor(np.array(region_image.convert('RGB'), dtype=np.uint8), cv2.COLOR_RGB2BGR)
 
-                    session = init_session()
-                    model = load_model(self.parameter['model'])
+                    session = self.init_session()
+                    model = self.load_model(self.parameter['model'])
 
                     # Get labels per-pixel and map them to grayscale:
                     if self.parameter['prediction_method'] == "whole":
