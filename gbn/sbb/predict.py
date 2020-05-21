@@ -311,6 +311,8 @@ class Predict(Processor):
                         canvas.paste(region_image, mask=alpha)
 
                         region_image = canvas
+                    else:
+                        alpha = None
 
                     # Convert PIL image array to RGB then to Numpy array then to BGR (for OpenCV):
                     region_image = cv2.cvtColor(np.array(region_image.convert('RGB'), dtype=np.uint8), cv2.COLOR_RGB2BGR)
@@ -331,8 +333,13 @@ class Predict(Processor):
 
                     session.close()
 
-                    # Convert OpenCV image array (Numpy) to PIL image array then to 1-bit grayscale:
-                    predict_image = PIL.Image.fromarray(predict_image).convert('1')
+                    if alpha:
+                        # Convert OpenCV image array (Numpy) to PIL image array then to 8-bit grayscale with alpha channel:
+                        predict_image = PIL.Image.fromarray(predict_image).convert('L')
+                        predict_image.putalpha(alpha)
+                    else:
+                        # Convert OpenCV image array (Numpy) to PIL image array then to 1-bit grayscale:
+                        predict_image = PIL.Image.fromarray(predict_image).convert('1')
 
                     # Get file ID of image to be saved:
                     file_id = input_file.ID.replace(self.input_file_grp, self.image_grp)
@@ -352,7 +359,7 @@ class Predict(Processor):
                     )
 
                     # Add metadata about saved image:
-                    page.add_AlternativeImage(
+                    region.add_AlternativeImage(
                         AlternativeImageType(
                             filename=file_path,
                             comments=page_xywh['features']
