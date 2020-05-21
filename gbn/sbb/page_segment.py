@@ -110,9 +110,6 @@ class PageSegment(Processor):
         return filtered
 
     def extract_contours(self, predict_image):
-        # Smooth shapes:
-        predict_image = cv2.erode(predict_image, self.kernel, iterations=4)
-        predict_image = cv2.dilate(predict_image, self.kernel, iterations=4)
 
         return cv2.findContours(predict_image, cv2.cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -130,6 +127,20 @@ class PageSegment(Processor):
         for polygon in polygons:
             x, y, w, h = cv2.boundingRect(np.array([[point] for point in polygon.exterior.coords], dtype=np.uint))
             boxes.append([x, y, w, h])
+
+        return boxes
+
+    def merge_overlapping_boxes(self, boxes, shape):
+        # Black (background) canvas:
+        canvas = np.zeros(shape, dtype=np.uint8)
+
+        # Draw filled white boxes:
+        for box in boxes:
+            cv2.rectangle(canvas, (box[0], box[1]), (box[0] + box[2], box[1] + box[3]), 255, -1)
+
+        contours, _ = self.extract_contours(canvas)
+        polygons = self.extract_polygons(contours)
+        boxes = self.extract_boxes(polygons)
 
         return boxes
 
@@ -183,7 +194,11 @@ class PageSegment(Processor):
             txtline = np.array(txtline.convert('L'), dtype=np.uint8)
 
             # TODO: Unhardcode this:
-            self.kernel = np.ones((5, 5), np.uint8)
+            kernel = np.ones((5, 5), np.uint8)
+
+            # Smooth shapes:
+            txtreg = cv2.erode(txtreg, kernel, iterations=4)
+            txtreg = cv2.dilate(txtreg, kernel, iterations=4)
 
             # Retrieve contours of segmented regions:
             contours, hierarchy = self.extract_contours(txtreg)
@@ -205,6 +220,26 @@ class PageSegment(Processor):
             )
 
             boxes = self.extract_boxes(polygons)
+
+            # Filter out regions with big/small textline density (white foreground):
+            boxes = self.foreground_density_filter(
+                txtline,
+                boxes,
+                self.parameter['min_textline_density'],
+                self.parameter['max_textline_density'],
+                255
+            )
+
+            # Filter out regions with big/small foreground density (black foreground):
+            boxes = self.foreground_density_filter(
+                page_image,
+                boxes,
+                self.parameter['min_foreground_density'],
+                self.parameter['max_foreground_density'],
+                0
+            )
+
+            boxes = self.merge_overlapping_boxes(boxes, (page_image.shape[0], page_image.shape[1]))
 
             # Filter out regions with big/small textline density (white foreground):
             boxes = self.foreground_density_filter(
