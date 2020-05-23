@@ -297,7 +297,7 @@ class Predict(Processor):
 
                 for idx, region in enumerate(regions):
                     # Get image from text region:
-                    region_image, _ = self.workspace.image_from_segment(region, page_image, page_xywh)
+                    region_image, region_xywh = self.workspace.image_from_segment(region, page_image, page_xywh)
 
                     # Remove alpha channel from image, if there is one:
                     if region_image.mode == 'LA' or region_image.mode == 'RGBA':
@@ -362,7 +362,7 @@ class Predict(Processor):
                     region.add_AlternativeImage(
                         AlternativeImageType(
                             filename=file_path,
-                            comments=page_xywh['features']
+                            comments=region_xywh['features']
                         )
                     )
             else:
