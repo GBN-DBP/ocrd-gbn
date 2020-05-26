@@ -95,8 +95,24 @@ class Mask(Processor):
                     mask_page_id
                 )
 
-                # Convert PIL image array to 1-bit grayscale then to boolean Numpy array (for OpenCV):
-                mask = np.array(mask.convert('1'), dtype=np.bool_)
+                # Convert PIL image array to 8-bit grayscale then to Numpy array (for OpenCV):
+                mask = np.array(mask.convert('L'), dtype=np.uint8)
+
+                if self.parameter['fill_contours']:
+                    contours, _ = cv2.findContours(mask, cv2.cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+                    cv2.fillPoly(mask, pts=contours, color=True)
+
+                # TODO: Unhardcode this:
+                kernel = np.ones((5, 5), np.uint8)
+
+                if self.parameter['erosion_iterations'] > 0:
+                    mask = cv2.erode(mask, kernel, iterations=self.parameter['erosion_iterations'])
+
+                if self.parameter['dilation_iterations'] > 0:
+                    mask = cv2.dilate(mask, kernel, iterations=self.parameter['dilation_iterations'])
+
+                # Convert mask to boolean:
+                mask = (mask / 255).astype(np.bool_)
 
                 # Apply mask on page image:
                 masked = self.mask_page(page_image, mask, 0 if self.parameter['bg_color'] == "black" else 255)

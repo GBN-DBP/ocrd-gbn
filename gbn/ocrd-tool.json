@@ -18,6 +18,21 @@
         "OCR-D-MASK"
       ],
       "parameters": {
+        "fill_contours": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether or not to fill the contours contained in the mask image"
+        },
+        "erosion_iterations": {
+          "type": "number",
+          "default": 0,
+          "description": "How many erosion iterations to perform (default is 0 - no erosion)"
+        },
+        "dilation_iterations": {
+          "type": "number",
+          "default": 0,
+          "description": "How many dilation iterations to perform (default is 0 - no dilation)"
+        },
         "bg_color": {
           "type": "string",
           "enum": [
