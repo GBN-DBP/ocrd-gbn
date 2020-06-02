@@ -11,6 +11,8 @@ import cv2
 import numpy as np
 import PIL.Image
 from shapely import geometry
+import scipy.signal
+import scipy.ndimage
 
 TOOL = "ocrd-gbn-sbb-page-segment"
 
@@ -144,6 +146,90 @@ class PageSegment(Processor):
 
         return boxes
 
+    def project(self, img):
+        vertical_proj = (img / 255).astype(np.uint8).sum(axis=1)
+        vertical_proj = scipy.ndimage.gaussian_filter1d(vertical_proj, 3)
+
+        horizontal_proj = (img / 255).astype(np.uint8).sum(axis=0)
+        horizontal_proj = scipy.ndimage.gaussian_filter1d(horizontal_proj, 3)
+
+        return vertical_proj, horizontal_proj
+
+    def iscontinuous(self, proj):
+        return all(proj != 0)
+
+    def split_continuous_parts(self, proj):
+        if self.iscontinuous(proj):
+            return [(0, proj.shape[0] - 1)]
+
+        parts = []
+
+        mark0 = None
+        for i in range(proj.shape[0]):
+            # If got zero and there was a continuous part being marked:
+            if mark0 and proj[i] == 0:
+                # Mark end point of continuous part:
+                mark1 = i
+
+                # Append part:
+                parts.append((mark0, mark1))
+
+                # Reset markers:
+                mark0 = None
+                mark1 = None
+            # If got non zero and there was no continuous part being marked:
+            elif not mark0 and proj[i] > 0:
+                # Mark start point of continuous part:
+                mark0 = i
+
+        # If there was a continuous part being marked:
+        if mark0:
+            # Mark end point of continuous part:
+            mark1 = proj.shape[0]
+
+            # Append part:
+            parts.append((mark0, mark1))
+
+        return parts
+
+    def split_boxes_vertically(self, boxes, img=None, global_proj=None):
+        continuous_boxes = []
+
+        for box in boxes:
+            x0 = box[0]
+            y0 = box[1]
+            x1 = x0 + box[2]
+            y1 = y0 + box[3]
+
+            if img is None:
+                proj = global_proj[y0:y1]
+            else:
+                proj, _ = self.project(img[y0:y1, x0:x1])
+
+            for part in self.split_continuous_parts(proj):
+                continuous_boxes.append([x0, y0 + part[0], x1 - x0, part[1] - part[0]])
+
+        return continuous_boxes
+
+    def split_boxes_horizontally(self, boxes, img=None, global_proj=None):
+        continuous_boxes = []
+
+        for box in boxes:
+            x0 = box[0]
+            y0 = box[1]
+            x1 = x0 + box[2]
+            y1 = y0 + box[3]
+
+            if img is None:
+                proj = global_proj[x0:x1]
+            else:
+                _, proj = self.project(img[y0:y1, x0:x1])
+
+            for part in self.split_continuous_parts(proj):
+                continuous_boxes.append([x0 + part[0], y0, part[1] - part[0], y1 - y0])
+
+        return continuous_boxes
+
     def process(self):
         for n, (input_file, txtreg_file, txtline_file) in enumerate(zip(self.input_files, self.txtreg_files, self.txtline_files)):
             LOG.info("Processing binary page image input file %i / %s", n, input_file)
@@ -258,6 +344,41 @@ class PageSegment(Processor):
                 self.parameter['max_foreground_density'],
                 0
             )
+
+            # Segment clearly distinct regions of the page vertically using the pixels predicted as text lines:
+            global_proj, _ = self.project(txtline)
+            boxes = self.split_boxes_vertically(boxes, global_proj=global_proj)
+
+            # Segment separate text regions horizontally using the pixels predicted as text lines:
+            boxes = self.split_boxes_horizontally(boxes, img=txtline)
+
+            # Invert black and white colors so the foreground becomes white:
+            inv_page_image = np.zeros_like(page_image)
+            inv_page_image[page_image == 0] = 255
+            inv_page_image = cv2.dilate(inv_page_image, kernel, iterations=2)
+
+            # Segment separate text regions vertically using the foreground pixels of the binary image:
+            boxes = self.split_boxes_vertically(boxes, img=inv_page_image)
+
+            # Filter out regions with big/small textline density (white foreground):
+            boxes = self.foreground_density_filter(
+                txtline,
+                boxes,
+                self.parameter['min_textline_density'],
+                self.parameter['max_textline_density'],
+                255
+            )
+
+            # Filter out regions with big/small foreground density (black foreground):
+            boxes = self.foreground_density_filter(
+                page_image,
+                boxes,
+                self.parameter['min_foreground_density'],
+                self.parameter['max_foreground_density'],
+                0
+            )
+
+            boxes = self.merge_overlapping_boxes(boxes, (page_image.shape[0], page_image.shape[1]))
 
             # DEBUG ONLY
             txtline_mask = (txtline / 255).astype(np.bool_)
