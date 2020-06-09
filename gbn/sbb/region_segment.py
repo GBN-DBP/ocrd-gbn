@@ -3,7 +3,7 @@ from gbn.tool import OCRD_TOOL
 from ocrd import Processor
 from ocrd_modelfactory import page_from_file
 from ocrd_models.ocrd_page import to_xml
-from ocrd_models.ocrd_page_generateds import AlternativeImageType, CoordsType, LabelsType, LabelType, MetadataItemType, TextRegionType
+from ocrd_models.ocrd_page_generateds import AlternativeImageType, CoordsType, LabelsType, LabelType, MetadataItemType, TextLineType
 from ocrd_utils import concat_padded, coordinates_for_segment, getLogger, MIMETYPE_PAGE, points_from_polygon
 
 import os.path
@@ -142,12 +142,6 @@ class RegionSegment(Processor):
             page_image_cv2 = cv2.cvtColor(page_image_cv2, cv2.COLOR_GRAY2BGR)
             #######
 
-            # TODO: Unhardcode this:
-            self.kernel = np.ones((5, 5), np.uint8)
-
-            #homogen = []
-            #non_homogen = []
-
             for idx, region in enumerate(regions):
                 # Get image from text region:
                 region_image, _ = self.workspace.image_from_segment(region, page_image, page_xywh)
@@ -187,6 +181,8 @@ class RegionSegment(Processor):
 
                     reg_x0 = int(x_offsets[0])
                     reg_y0 = int(y_offsets[0])
+                    reg_x1 = int(x_offsets[1])
+                    reg_y1 = int(y_offsets[1])
 
                     cx = region_image.shape[1] / 2
                     cy = region_image.shape[0] / 2
@@ -194,53 +190,6 @@ class RegionSegment(Processor):
                     angle = region.get_orientation()
 
                     M = cv2.getRotationMatrix2D((cx, cy), angle, 1.0)
-
-                    #non_homogen.append((region_image, reg_x0, reg_y0, M))
-
-            #while non_homogen:
-                #new_non_homogen = []
-
-                #for idx, item in enumerate(non_homogen):
-                    #region_image, reg_x0, reg_y0, M = item
-
-                    #peak_signal = (region_image / 255).astype(np.uint8).sum(axis=1)
-                    #peak_signal = scipy.ndimage.gaussian_filter1d(peak_signal, 3)
-                    #peak_signal = np.gradient(peak_signal)
-
-                    #peaks, _ = scipy.signal.find_peaks(peak_signal, height=0)
-
-                    #if peaks.shape[0] > 1:
-                        #left_peaks = peaks[:-1]
-                        #right_peaks = peaks[1:]
-
-                        #diffs = np.subtract(right_peaks, left_peaks)
-
-                        #if np.var(diffs) < 4.25:
-                            #homogen.append((region_image, reg_x0, reg_y0, M))
-                        #else:
-                            #mask = (region_image / 255).astype(np.bool_)
-
-                            #inv_region_image = np.ones_like(region_image)
-
-                            #inv_region_image[mask == True] = 0
-
-                            #valley_signal = inv_region_image.astype(np.uint8).sum(axis=1)
-                            #valley_signal = scipy.ndimage.gaussian_filter1d(valley_signal, 3)
-
-                            #valleys, _ = scipy.signal.find_peaks(valley_signal, height=0)
-
-                            #valleys_density = inv_region_image[valleys].sum(axis=1)
-                            #valley = valleys[np.argmax(valleys_density)]
-
-                            #new_non_homogen.append((region_image[:valley], reg_x0, reg_y0, M))
-                            #new_non_homogen.append((region_image[valley:], reg_x0, reg_y0 + valley, M))
-                    #else:
-                        #homogen.append((region_image, reg_x0, reg_y0, M))
-                
-                #non_homogen = new_non_homogen
-
-            #for item in homogen:
-                #region_image, reg_x0, reg_y0, M = item
 
                     mask = (region_image / 255).astype(np.bool_)
 
@@ -252,6 +201,38 @@ class RegionSegment(Processor):
                     valley_signal = scipy.ndimage.gaussian_filter1d(valley_signal, 3)
 
                     valleys, _ = scipy.signal.find_peaks(valley_signal, height=0)
+
+                    valleys = np.append(valleys, [reg_y1 - reg_y0])
+
+                    x0 = reg_x0
+                    x1 = reg_x1
+
+                    y1 = 0
+                    for line, valley in enumerate(valleys):
+                        y0 = reg_y0 + y1
+                        y1 = reg_y0 + valley
+
+                        polygon = [
+                            [x0, y0],
+                            [x1, y0],
+                            [x1, y1],
+                            [x0, y1]
+                        ]
+
+                        line_id = region.id + "_line%04d" % line
+
+                        # convert back to absolute (page) coordinates:
+                        line_polygon = coordinates_for_segment(polygon, page_image, page_xywh)
+
+                        # annotate result:
+                        region.add_TextLine(
+                            TextLineType(
+                                id=line_id,
+                                Coords=CoordsType(
+                                    points=points_from_polygon(line_polygon)
+                                )
+                            )
+                        )
 
                     x0 = 0
                     x1 = region_image.shape[1] - 1
@@ -342,62 +323,6 @@ class RegionSegment(Processor):
 
                             cv2.line(page_image_cv2, (x0, y0), (x1, y1), (0, 255, 0), 2)
 
-                # Retrieve contours of segmented lines:
-                #contours, hierarchy = self.extract_contours(region_image)
-
-                # Filter out non-polygons:
-                #contours = self.geometry_filter(contours)
-
-                # Filter out non-leaves (contours with child contours):
-                #contours = self.hierarchy_filter(contours, hierarchy)
-
-                #polygons = self.extract_polygons(contours)
-
-                # Filter out small/big particles:
-                #area = region_image.shape[0] * region_image.shape[1]
-                #contours = self.particle_size_filter(
-                    #polygons,
-                    #self.parameter['min_particle_size'] * area,
-                    #self.parameter['max_particle_size'] * area
-                #)
-
-                #boxes = self.extract_boxes(polygons)
-
-                #coords = region.get_Coords()
-                
-                #x_offsets = coords.get_points().replace(' ', ',').split(',')[0::2]
-                #y_offsets = coords.get_points().replace(' ', ',').split(',')[1::2]
-
-                #reg_x0 = int(x_offsets[0])
-                #reg_x1 = int(x_offsets[1])
-                #reg_y0 = int(y_offsets[0])
-                #reg_y1 = int(y_offsets[2])
-
-                #for line, box in enumerate(boxes):
-                    #x0 = reg_x0 + box[0]
-                    #y0 = reg_y0 + box[1]
-                    #x1 = reg_x0 + box[0] + box[2]
-                    #y1 = reg_y0 + box[1] + box[3]
-
-                    #polygon = [
-                        #[x0, y0],
-                        #[x1, y0],
-                        #[x1, y1],
-                        #[x0, y1]
-                    #]
-
-                    #cv2.rectangle(page_image_cv2, (x0, y0), (x1, y1), (0, 255, 0), 2)
-                ############
-
-            # DEBUG ONLY
-            #if alpha:
-                # Convert OpenCV image array (Numpy) to PIL image array then to 8-bit grayscale with alpha channel:
-                #region_image = PIL.Image.fromarray(cv2.cvtColor(region_image, cv2.COLOR_BGR2RGB))
-                #region_image.putalpha(alpha)
-            #else:
-                # Convert OpenCV image array (Numpy) to PIL image array then to 1-bit grayscale:
-                #region_image = PIL.Image.fromarray(cv2.cvtColor(region_image, cv2.COLOR_BGR2RGB))
-
             page_image = PIL.Image.fromarray(cv2.cvtColor(page_image_cv2, cv2.COLOR_BGR2RGB))
 
             # Get file ID of image to be saved:
@@ -406,9 +331,6 @@ class RegionSegment(Processor):
             if file_id == input_file.ID:
                 file_id = concat_padded(self.image_grp, n)
 
-            # Concatenate region number and model name to ID:
-            #file_id += "_region%04d" % idx
-
             # Save image:
             file_path = self.workspace.save_image_file(
                 page_image,
@@ -416,67 +338,6 @@ class RegionSegment(Processor):
                 page_id=page_id,
                 file_grp=self.image_grp
             )
-
-            continue
-
-            # DEBUG ONLY
-            txtline_mask = (txtline / 255).astype(np.bool_)
-            bg_mask = (page_image / 255).astype(np.bool_)
-
-            page_image = cv2.cvtColor(page_image, cv2.COLOR_GRAY2BGR)
-
-            page_image[bg_mask == True] = np.array([0, 0, 0])
-            page_image[txtline_mask == True] = np.array([255, 0, 0])
-            page_image[bg_mask == False] = np.array([255, 255, 255])
-            ############
-
-            for region, box in enumerate(boxes):
-                x0 = box[0]
-                y0 = box[1]
-                x1 = box[0] + box[2]
-                y1 = box[1] + box[3]
-
-                polygon = [
-                    [x0, y0],
-                    [x1, y0],
-                    [x1, y1],
-                    [x0, y1]
-                ]
-
-                # DEBUG ONLY
-                cv2.rectangle(page_image, (x0, y0), (x1, y1), (0, 255, 0), 3)
-                ############
-
-                region_id = page_id + "_region%04d" % region
-
-                # convert back to absolute (page) coordinates:
-                region_polygon = coordinates_for_segment(polygon, page_image, page_xywh)
-
-                # annotate result:
-                page.add_TextRegion(
-                    TextRegionType(
-                        id=region_id,
-                        Coords=CoordsType(
-                            points=points_from_polygon(region_polygon)
-                        )
-                    )
-                )
-
-            # DEBUG ONLY
-            page_image = PIL.Image.fromarray(cv2.cvtColor(page_image, cv2.COLOR_BGR2RGB))
-
-            file_id = txtline_file.ID.replace(self.input_file_grp, self.image_grp)
-
-            if file_id == txtline_file.ID:
-                file_id = concat_padded(self.image_grp, n)
-
-            self.workspace.save_image_file(
-                page_image,
-                file_id,
-                page_id=page_id,
-                file_grp=self.image_grp
-            )
-            ############
 
             # Add metadata about this operation:
             metadata = pcgts.get_Metadata()
@@ -503,7 +364,7 @@ class RegionSegment(Processor):
             # Get file ID of XML PAGE to be saved:
             file_id = input_file.ID.replace(self.input_file_grp, self.page_grp)
 
-            if file_id == txtline_file.ID:
+            if file_id == input_file.ID:
                 file_id = concat_padded(self.page_grp, n)
 
             # Save XML PAGE:
