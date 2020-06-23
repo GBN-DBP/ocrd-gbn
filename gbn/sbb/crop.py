@@ -1,4 +1,4 @@
-from gbn.lib.util import pil_to_cv2_rgb, cv2_to_pil_gray
+from gbn.lib.util import pil_to_cv2_rgb, cv2_to_pil_gray, pil_to_cv2_gray
 from gbn.lib.predict import Predicting
 from gbn.tool import OCRD_TOOL
 
@@ -9,17 +9,18 @@ from ocrd_models.ocrd_page_generateds import AlternativeImageType, LabelsType, L
 from ocrd_utils import concat_padded, getLogger, MIMETYPE_PAGE
 
 import os.path
+import numpy as np
 
-TOOL = "ocrd-gbn-sbb-predict"
+TOOL = "ocrd-gbn-sbb-crop"
 
-LOG = getLogger("processor.OcrdGbnSbbPredict")
-FALLBACK_FILEGRP_IMG = "OCR-D-IMG-PREDICT"
+LOG = getLogger("processor.OcrdGbnSbbCrop")
+FALLBACK_FILEGRP_IMG = "OCR-D-IMG-CROP"
 
-class OcrdGbnSbbPredict(Processor):
+class OcrdGbnSbbCrop(Processor):
     def __init__(self, *args, **kwargs):
         kwargs['ocrd_tool'] = OCRD_TOOL['tools'][TOOL]
         kwargs['version'] = OCRD_TOOL['version']
-        super(OcrdGbnSbbPredict, self).__init__(*args, **kwargs)
+        super(OcrdGbnSbbCrop, self).__init__(*args, **kwargs)
 
         if hasattr(self, "output_file_grp"):
             try:
@@ -30,15 +31,21 @@ class OcrdGbnSbbPredict(Processor):
                 self.image_grp = FALLBACK_FILEGRP_IMG
                 LOG.info("No output file group for images specified, falling back to '%s'", FALLBACK_FILEGRP_IMG)
 
-    def _process_element(self, element, element_image, element_xywh, id_suffix, page_id, n, input_file, predictor):
+    def _process_element(self, element, element_image, element_image_bin, element_xywh, id_suffix, page_id, n, input_file, predictor):
         # Convert PIL to cv2 (RGB):
-        element_image, alpha = pil_to_cv2_rgb(element_image)
+        element_image, _ = pil_to_cv2_rgb(element_image)
 
-        # Get labels per-pixel and map them to grayscale:
-        predict_image = predictor.predict(element_image) * 255
+        # Convert PIL to cv2 (grayscale):
+        element_image_bin, alpha = pil_to_cv2_gray(element_image_bin)
+
+        # Get labels per-pixel and map them to boolean to create a mask:
+        predict_image = predictor.predict(element_image).astype(np.bool_)
+
+        # Set everything outside mask to white:
+        element_image_bin[predict_image == False] = 255
 
         # Convert cv2 to PIL (grayscale):
-        predict_image = cv2_to_pil_gray(predict_image, alpha)
+        element_image_bin = cv2_to_pil_gray(element_image_bin, alpha)
 
         # Get file ID of image to be saved:
         file_id = input_file.ID.replace(self.input_file_grp, self.image_grp)
@@ -46,12 +53,12 @@ class OcrdGbnSbbPredict(Processor):
         if file_id == input_file.ID:
             file_id = concat_padded(self.image_grp, n)
 
-        # Concatenate model name to ID:
-        file_id += id_suffix + "_" + os.path.splitext(os.path.basename(self.parameter['model']))[0]
+        # Concatenate suffix to ID:
+        file_id += id_suffix
 
         # Save image:
         file_path = self.workspace.save_image_file(
-            predict_image,
+            element_image_bin,
             file_id,
             page_id=page_id,
             file_grp=self.image_grp
@@ -61,7 +68,7 @@ class OcrdGbnSbbPredict(Processor):
         element.add_AlternativeImage(
             AlternativeImageType(
                 filename=file_path,
-                comments=element_xywh['features']
+                comments=element_xywh['features'] + ",cropped"
             )
         )
 
@@ -77,13 +84,26 @@ class OcrdGbnSbbPredict(Processor):
             pcgts = page_from_file(self.workspace.download_file(input_file))
             page = pcgts.get_Page()
 
-            # Get image from PAGE:
-            page_image, page_xywh, _ = self.workspace.image_from_page(page, page_id)
+            # Get non-binarized image from PAGE:
+            page_image, page_xywh, _ = self.workspace.image_from_page(
+                page,
+                page_id,
+                feature_filter="binarized,deskewed"
+            )
 
             if self.parameter['operation_level'] == "page":
+                # Get binarized image from PAGE:
+                page_image_bin, page_xywh, _ = self.workspace.image_from_page(
+                    page,
+                    page_id,
+                    feature_selector="binarized",
+                    feature_filter="deskewed"
+                )
+
                 self._process_element(
                     page,
                     page_image,
+                    page_image_bin,
                     page_xywh,
                     "",
                     page_id,
@@ -95,12 +115,27 @@ class OcrdGbnSbbPredict(Processor):
                 regions = page.get_TextRegion()
 
                 for region_idx, region in enumerate(regions):
-                    # Get image from text region:
-                    region_image, region_xywh = self.workspace.image_from_segment(region, page_image, page_xywh)
+                    # Get non-binarized image from TextRegion:
+                    region_image, _ = self.workspace.image_from_segment(
+                        region,
+                        page_image,
+                        page_xywh,
+                        feature_filter="binarized,deskewed"
+                    )
+
+                    # Get binarized image from TextRegion:
+                    region_image_bin, region_xywh = self.workspace.image_from_segment(
+                        region,
+                        page_image,
+                        page_xywh,
+                        feature_selector="binarized",
+                        feature_filter="deskewed"
+                    )
 
                     self._process_element(
                         region,
                         region_image,
+                        region_image_bin,
                         region_xywh,
                         "_region%04d" % region_idx,
                         page_id,
@@ -115,12 +150,27 @@ class OcrdGbnSbbPredict(Processor):
                     lines = region.get_TextLine()
 
                     for line_idx, line in enumerate(lines):
-                        # Get image from text region:
-                        line_image, line_xywh = self.workspace.image_from_segment(line, page_image, page_xywh)
+                        # Get non-binarized image from TextLine:
+                        line_image, _ = self.workspace.image_from_segment(
+                            line,
+                            page_image,
+                            page_xywh,
+                            feature_filter="binarized,deskewed"
+                        )
+
+                        # Get binarized image from TextLine:
+                        line_image_bin, line_xywh = self.workspace.image_from_segment(
+                            line,
+                            page_image,
+                            page_xywh,
+                            feature_selector="binarized",
+                            feature_filter="deskewed"
+                        )
 
                         self._process_element(
                             line,
                             line_image,
+                            line_image_bin,
                             line_xywh,
                             "_region%04d" % region_idx + "_line%04d" % line_idx,
                             page_id,

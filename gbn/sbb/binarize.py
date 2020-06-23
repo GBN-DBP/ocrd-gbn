@@ -1,4 +1,4 @@
-from gbn.lib.util import pil_to_cv2_rgb, cv2_to_pil_gray
+from gbn.lib.util import pil_to_cv2_rgb, cv2_to_pil_gray, invert_image
 from gbn.lib.predict import Predicting
 from gbn.tool import OCRD_TOOL
 
@@ -10,16 +10,16 @@ from ocrd_utils import concat_padded, getLogger, MIMETYPE_PAGE
 
 import os.path
 
-TOOL = "ocrd-gbn-sbb-predict"
+TOOL = "ocrd-gbn-sbb-binarize"
 
-LOG = getLogger("processor.OcrdGbnSbbPredict")
-FALLBACK_FILEGRP_IMG = "OCR-D-IMG-PREDICT"
+LOG = getLogger("processor.OcrdGbnSbbBinarize")
+FALLBACK_FILEGRP_IMG = "OCR-D-IMG-BIN"
 
-class OcrdGbnSbbPredict(Processor):
+class OcrdGbnSbbBinarize(Processor):
     def __init__(self, *args, **kwargs):
         kwargs['ocrd_tool'] = OCRD_TOOL['tools'][TOOL]
         kwargs['version'] = OCRD_TOOL['version']
-        super(OcrdGbnSbbPredict, self).__init__(*args, **kwargs)
+        super(OcrdGbnSbbBinarize, self).__init__(*args, **kwargs)
 
         if hasattr(self, "output_file_grp"):
             try:
@@ -34,8 +34,8 @@ class OcrdGbnSbbPredict(Processor):
         # Convert PIL to cv2 (RGB):
         element_image, alpha = pil_to_cv2_rgb(element_image)
 
-        # Get labels per-pixel and map them to grayscale:
-        predict_image = predictor.predict(element_image) * 255
+        # Get labels per-pixel, map them to grayscale and invert image so foreground is black:
+        predict_image = invert_image(predictor.predict(element_image) * 255)
 
         # Convert cv2 to PIL (grayscale):
         predict_image = cv2_to_pil_gray(predict_image, alpha)
@@ -46,8 +46,8 @@ class OcrdGbnSbbPredict(Processor):
         if file_id == input_file.ID:
             file_id = concat_padded(self.image_grp, n)
 
-        # Concatenate model name to ID:
-        file_id += id_suffix + "_" + os.path.splitext(os.path.basename(self.parameter['model']))[0]
+        # Concatenate suffix to ID:
+        file_id += id_suffix
 
         # Save image:
         file_path = self.workspace.save_image_file(
@@ -61,7 +61,7 @@ class OcrdGbnSbbPredict(Processor):
         element.add_AlternativeImage(
             AlternativeImageType(
                 filename=file_path,
-                comments=element_xywh['features']
+                comments="binarized" if not element_xywh['features'] else element_xywh['features'] + ",binarized"
             )
         )
 
@@ -78,7 +78,11 @@ class OcrdGbnSbbPredict(Processor):
             page = pcgts.get_Page()
 
             # Get image from PAGE:
-            page_image, page_xywh, _ = self.workspace.image_from_page(page, page_id)
+            page_image, page_xywh, _ = self.workspace.image_from_page(
+                page,
+                page_id,
+                feature_filter="binarized"
+            )
 
             if self.parameter['operation_level'] == "page":
                 self._process_element(
@@ -96,7 +100,12 @@ class OcrdGbnSbbPredict(Processor):
 
                 for region_idx, region in enumerate(regions):
                     # Get image from text region:
-                    region_image, region_xywh = self.workspace.image_from_segment(region, page_image, page_xywh)
+                    region_image, region_xywh = self.workspace.image_from_segment(
+                        region,
+                        page_image,
+                        page_xywh,
+                        feature_filter="binarized"
+                    )
 
                     self._process_element(
                         region,
@@ -116,7 +125,12 @@ class OcrdGbnSbbPredict(Processor):
 
                     for line_idx, line in enumerate(lines):
                         # Get image from text region:
-                        line_image, line_xywh = self.workspace.image_from_segment(line, page_image, page_xywh)
+                        line_image, line_xywh = self.workspace.image_from_segment(
+                            line,
+                            page_image,
+                            page_xywh,
+                            feature_filter="binarized"
+                        )
 
                         self._process_element(
                             line,

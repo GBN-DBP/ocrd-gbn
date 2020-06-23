@@ -1,27 +1,27 @@
 import click
 from ocrd.decorators import ocrd_cli_options, ocrd_cli_wrap_processor
 
-from gbn.mask import Mask
-from gbn.sbb.predict import Predict
-from gbn.sbb.page_segment import PageSegment
-from gbn.sbb.region_segment import RegionSegment
-
-@click.command()
-@ocrd_cli_options
-def ocrd_gbn_mask(*args, **kwargs):
-    return ocrd_cli_wrap_processor(Mask, *args, **kwargs)
+from gbn.sbb.predict import OcrdGbnSbbPredict
+from gbn.sbb.binarize import OcrdGbnSbbBinarize
+from gbn.sbb.crop import OcrdGbnSbbCrop
+from gbn.sbb.segment import OcrdGbnSbbSegment
 
 @click.command()
 @ocrd_cli_options
 def ocrd_gbn_sbb_predict(*args, **kwargs):
-    return ocrd_cli_wrap_processor(Predict, *args, **kwargs)
+    return ocrd_cli_wrap_processor(OcrdGbnSbbPredict, *args, **kwargs)
 
 @click.command()
 @ocrd_cli_options
-def ocrd_gbn_sbb_page_segment(*args, **kwargs):
-    return ocrd_cli_wrap_processor(PageSegment, *args, **kwargs)
+def ocrd_gbn_sbb_binarize(*args, **kwargs):
+    return ocrd_cli_wrap_processor(OcrdGbnSbbBinarize, *args, **kwargs)
 
 @click.command()
 @ocrd_cli_options
-def ocrd_gbn_sbb_region_segment(*args, **kwargs):
-    return ocrd_cli_wrap_processor(RegionSegment, *args, **kwargs)
+def ocrd_gbn_sbb_crop(*args, **kwargs):
+    return ocrd_cli_wrap_processor(OcrdGbnSbbCrop, *args, **kwargs)
+
+@click.command()
+@ocrd_cli_options
+def ocrd_gbn_sbb_segment(*args, **kwargs):
+    return ocrd_cli_wrap_processor(OcrdGbnSbbSegment, *args, **kwargs)

@@ -2,48 +2,6 @@
   "version": "0.0.1",
   "git_url": "https://github.com/sulzbals/gbn",
   "tools": {
-    "ocrd-gbn-mask": {
-      "executable": "ocrd-gbn-mask",
-      "categories": [
-        "Image preprocessing"
-      ],
-      "description": "Applies a mask (represented as a binary, black-and-white image) on the binarized input page",
-      "steps": [
-        "preprocessing/optimization"
-      ],
-      "input_file_grp": [
-        "OCR-D-BIN"
-      ],
-      "output_file_grp": [
-        "OCR-D-MASK"
-      ],
-      "parameters": {
-        "fill_contours": {
-            "type": "boolean",
-            "default": false,
-            "description": "Whether or not to fill the contours contained in the mask image"
-        },
-        "erosion_iterations": {
-          "type": "number",
-          "default": 0,
-          "description": "How many erosion iterations to perform (default is 0 - no erosion)"
-        },
-        "dilation_iterations": {
-          "type": "number",
-          "default": 0,
-          "description": "How many dilation iterations to perform (default is 0 - no dilation)"
-        },
-        "bg_color": {
-          "type": "string",
-          "enum": [
-            "black",
-            "white"
-          ],
-          "default": "black",
-          "description": "Background color, to be set to the pixels of the output page not belonging to the mask"
-        }
-      }
-    },
     "ocrd-gbn-sbb-predict": {
       "executable": "ocrd-gbn-sbb-predict",
       "categories": [
@@ -67,14 +25,14 @@
           "cacheable": true,
           "description": "Path of model to be run"
         },
-        "prediction_method": {
+        "prediction_algorithm": {
           "type": "string",
           "enum": [
-            "whole",
-            "patches",
-            "bordered_patches"
+            "whole_image",
+            "sbb_patches",
+            "gbn_patches"
           ],
-          "default": "whole",
+          "default": "gbn_patches",
           "description": "How the image should be passed to the model (whole image or split in patches)"
         },
         "operation_level": {
@@ -89,91 +47,174 @@
         }
       }
     },
-    "ocrd-gbn-sbb-page-segment": {
-      "executable": "ocrd-gbn-sbb-page-segment",
+    "ocrd-gbn-sbb-binarize": {
+      "executable": "ocrd-gbn-sbb-binarize",
+      "categories": [
+        "Image preprocessing",
+        "Layout analysis"
+      ],
+      "description": "Binarizes the input images using deep learning",
+      "steps": [
+        "preprocessing/optimization/binarization",
+        "layout/analysis"
+      ],
+      "input_file_grp": [
+        "OCR-D-IMG"
+      ],
+      "output_file_grp": [
+        "OCR-D-BIN"
+      ],
+      "parameters": {
+        "model": {
+          "type": "string",
+          "format": "file",
+          "cacheable": true,
+          "description": "Path of model to be run"
+        },
+        "prediction_algorithm": {
+          "type": "string",
+          "enum": [
+            "whole_image",
+            "sbb_patches",
+            "gbn_patches"
+          ],
+          "default": "gbn_patches",
+          "description": "How the image should be passed to the model (whole image or split in patches)"
+        },
+        "operation_level": {
+          "type": "string",
+          "enum": [
+            "page",
+            "region",
+            "line"
+          ],
+          "default": "page",
+          "description": "PAGE XML hierarchy level to operate on"
+        }
+      }
+    },
+    "ocrd-gbn-sbb-crop": {
+      "executable": "ocrd-gbn-sbb-crop",
+      "categories": [
+        "Image preprocessing",
+        "Layout analysis"
+      ],
+      "description": "Crops the input images using deep learning",
+      "steps": [
+        "preprocessing/optimization/cropping",
+        "layout/analysis"
+      ],
+      "input_file_grp": [
+        "OCR-D-BIN"
+      ],
+      "output_file_grp": [
+        "OCR-D-CROP"
+      ],
+      "parameters": {
+        "model": {
+          "type": "string",
+          "format": "file",
+          "cacheable": true,
+          "description": "Path of model to be run"
+        },
+        "prediction_algorithm": {
+          "type": "string",
+          "enum": [
+            "whole_image",
+            "sbb_patches",
+            "gbn_patches"
+          ],
+          "default": "whole_image",
+          "description": "How the image should be passed to the model (whole image or split in patches)"
+        },
+        "operation_level": {
+          "type": "string",
+          "enum": [
+            "page",
+            "region",
+            "line"
+          ],
+          "default": "page",
+          "description": "PAGE XML hierarchy level to operate on"
+        }
+      }
+    },
+    "ocrd-gbn-sbb-segment": {
+      "executable": "ocrd-gbn-sbb-segment",
       "categories": [
         "Layout analysis"
       ],
-      "description": "Segments text regions from the binarized input page given the predictions of the text regions and text lines",
+      "description": "Segments text regions using deep learning",
       "steps": [
-        "layout/segmentation/region"
+        "layout/segmentation"
       ],
       "input_file_grp": [
-        "OCR-D-BIN",
-        "OCR-D-PREDICT-PAGE-TXTREG",
-        "OCR-D-PREDICT-PAGE-TXTLINE"
+        "OCR-D-DESKEW"
       ],
       "output_file_grp": [
-        "OCR-D-SEG-PAGE"
+        "OCR-D-SEG"
       ],
       "parameters": {
         "min_particle_size": {
           "type": "number",
           "default": 0.00001,
-          "description": "Minimum ratio of the total page area for a particle to be considered a text region"
+          "description": "Minimum ratio of the total segment area for a particle to be considered text"
         },
         "max_particle_size": {
           "type": "number",
           "default": 1.0,
-          "description": "Maximum ratio of the total page area for a particle to be considered a text region"
+          "description": "Maximum ratio of the total segment area for a particle to be considered text"
         },
         "min_textline_density": {
           "type": "number",
-          "default": 0.05,
-          "description": "Minimum ratio of detected text line pixels of a bounding box for it to be considered a text region"
+          "default": 0.1,
+          "description": "Minimum ratio of predicted text line pixels of a segment for it to be considered text"
         },
         "max_textline_density": {
           "type": "number",
           "default": 1.0,
-          "description": "Maximum ratio of detected text line pixels of a bounding box for it to be considered a text region"
+          "description": "Maximum ratio of predicted text line pixels of a segment for it to be considered text"
         },
-        "min_foreground_density": {
-          "type": "number",
-          "default": 0.05,
-          "description": "Minimum ratio of foreground (black) pixels of a bounding box for it to be considered a text region"
+        "textregion_src": {
+          "type": "string",
+          "format": "file",
+          "cacheable": true,
+          "description": "Path of model to be run or input file group for text region predictions"
         },
-        "max_foreground_density": {
-          "type": "number",
-          "default": 0.8,
-          "description": "Maximum ratio of foreground (black) pixels of a bounding box for it to be considered a text region"
-        }
-      }
-    },
-    "ocrd-gbn-sbb-region-segment": {
-      "executable": "ocrd-gbn-sbb-region-segment",
-      "categories": [
-        "Layout analysis"
-      ],
-      "description": "Segments text lines from text regions of input page given the prediction of text lines as input",
-      "steps": [
-        "layout/segmentation/line"
-      ],
-      "input_file_grp": [
-        "OCR-D-PREDICT-REG-TXTLINE"
-      ],
-      "output_file_grp": [
-        "OCR-D-SEG-REG"
-      ],
-      "parameters": {
-        "min_particle_size": {
-          "type": "number",
-          "default": 0.00001,
-          "description": "Minimum ratio of the total page area for a particle to be considered a text region"
+        "textline_src": {
+          "type": "string",
+          "format": "file",
+          "cacheable": true,
+          "description": "Path of model to be run or input file group for text line predictions"
         },
-        "max_particle_size": {
-          "type": "number",
-          "default": 1.0,
-          "description": "Maximum ratio of the total page area for a particle to be considered a text region"
+        "textregion_algorithm": {
+          "type": "string",
+          "enum": [
+            "whole_image",
+            "sbb_patches",
+            "gbn_patches"
+          ],
+          "default": "gbn_patches",
+          "description": "How the image should be passed to the text region model"
         },
-        "min_foreground_density": {
-          "type": "number",
-          "default": 0.05,
-          "description": "Minimum ratio of foreground (black) pixels of a bounding box for it to be considered a text region"
+        "textline_algorithm": {
+          "type": "string",
+          "enum": [
+            "whole_image",
+            "sbb_patches",
+            "gbn_patches"
+          ],
+          "default": "gbn_patches",
+          "description": "How the image should be passed to the text line model"
         },
-        "max_foreground_density": {
-          "type": "number",
-          "default": 0.8,
-          "description": "Maximum ratio of foreground (black) pixels of a bounding box for it to be considered a text region"
+        "operation_level": {
+          "type": "string",
+          "enum": [
+            "page",
+            "region"
+          ],
+          "default": "page",
+          "description": "PAGE XML hierarchy level to operate on"
         }
       }
     }
