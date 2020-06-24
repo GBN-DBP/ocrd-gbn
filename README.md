@@ -235,6 +235,10 @@ ocrd-gbn-sbb-segment
 
 Segments pages given the deep learning predictions of text regions and text lines. The **page-level** routine is very similar to the [ocrd-sbb-textline-detector](https://github.com/qurator-spk/sbb_textline_detection), consisting of combining text region and text line predictions to define the regions boundaries. Some extra steps were implemented e.g. to filter out false positives, merge overlapping bounding boxes and split distinct regions predicted as a single one by the model. The **region-level** routine, on the other hand, was written specifically for this project, and consists of extracting the text lines from the predictions for each region.
 
+Given the long time it takes to perform the predictions, and how it can slow down the development/debugging process, this tool supports caching of predictions in the workspace. To use this feature, the model has to be applied once with [ocrd-gbn-sbb-predict](#ocrd-gbn-sbb-predict), then the file group where the predictions were stored must be supplied instead of a path to the deep learning model. Those parameters are **textregion_src** and **textline_src** (one for each kind of prediction). Analogously, if a path to  a model is provided, its prediction algorithm can be set through either **textregion_algorithm** or **textline_algorithm**.
+
+There are also other parameters for tuning the filtering steps of the segmentation algorithm. **min_particle_size** and **max_particle_size** set how small/big a foreground (positive label) particle should be relatively to the total page area in order to be considered a text line/region. **min_textline_density** and **max_textline_density** set the minimum and maximum ratio of pixels inside a text region that should have been predicted as text line (positive label) for it to be considered a text region.
+
 ```json
 {
  "executable": "ocrd-gbn-sbb-segment",
