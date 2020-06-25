@@ -85,22 +85,16 @@ class OcrdGbnSbbSegment(Processor):
 
         # Segment separate text regions horizontally using the pixels predicted as text lines:
         textline_extractor.split_boxes_by_continuity(axis=0)
-
         textline_extractor.split_boxes_by_standard_deviation(axis=0, n=4)
 
-        # Construct characteristic extractor for the page image:
-        page_extractor = Extracting(
-            page_image
-        )
+        # Dilate text line predictions a bit to join ones that are close to each other:
+        textline_extractor.dilate(2)
 
-        # Load bounding boxes of text regions into the page image extractor:
-        page_extractor.import_boxes(textline_extractor.export_boxes())
+        # Segment separate text regions vertically using the pixels predicted as text lines:
+        textline_extractor.split_boxes_by_continuity(axis=1)
 
-        # Segment separate text regions vertically using the foreground pixels of the binary image:
-        page_extractor.split_boxes_by_continuity(axis=1)
-
-        # Load bounding boxes of text regions into the text line extractor:
-        textline_extractor.import_boxes(page_extractor.export_boxes())
+        # Resize text regions horizontally using the pixels predicted as text lines:
+        textline_extractor.split_boxes_by_continuity(axis=0)
 
         # Filter boxes by textline density:
         textline_extractor.filter_by_foreground_density()
