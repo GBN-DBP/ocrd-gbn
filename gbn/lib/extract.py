@@ -323,14 +323,41 @@ class Extracting():
                 not_overlapped = [val for idx, val in enumerate(unmerged) if idx not in overlapped]
                 overlapped = [val for idx, val in enumerate(unmerged) if idx in overlapped]
 
-                # Include current box:
-                overlapped.append(a)
+                true_overlapped = []
+                for box in overlapped:
+                    # Store resolved boxes as a Numpy array:
+                    boxes = np.array([resolve_box(a), resolve_box(box)])
 
-                # Merge all overlapping boxes:
-                merged_box = merge_boxes(overlapped)
+                    # Get interior extremes:
+                    x0 = np.amax(boxes[:, 0])
+                    y0 = np.amax(boxes[:, 1])
+                    x1 = np.amin(boxes[:, 2])
+                    y1 = np.amin(boxes[:, 3])
 
-                # Update unmerged list:
-                unmerged = [merged_box] + not_overlapped
+                    # Intersection of both boxes:
+                    intersect = [x0, y0, x1 - x0, y1 - y0]
+
+                    # If there are foreground pixels in the intersection, it is a true overlap:
+                    if np.count_nonzero(slice_image(self.image, intersect)):
+                        true_overlapped.append(box)
+                    else:
+                        not_overlapped.append(box)
+
+                if true_overlapped:
+                    # Include current box:
+                    true_overlapped.append(a)
+
+                    # Merge all overlapping boxes:
+                    merged_box = merge_boxes(true_overlapped)
+
+                    # Include merged box here for further checking:
+                    not_overlapped.append(merged_box)
+                else:
+                    # Include current box:
+                    merged.append(a)
+
+                # Sort boxes by area:
+                unmerged = sorted(not_overlapped, key=get_box_area, reverse=True)
             else:
                 merged.append(a)
 
