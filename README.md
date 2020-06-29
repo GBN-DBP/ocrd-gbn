@@ -1,15 +1,7 @@
 German-Brazilian Newspapers (gbn)
 =================================
 
-Collection of [OCR-D](https://ocr-d.de/en/) compliant tools for layout analysis and segmentation of historical german-language documents published in brazilian territory during the 19th and 20th centuries, with emphasis in periodicals. 
-
-Even though there is a huge volume of digitized documents of this kind (e.g. the [Dokumente project](https://dokumente.ufpr.br/en/index.html) and the [Brazilian National Library](http://memoria.bn.br/docreader/docmulti.aspx?bib=ger)), they are all split into several databases and usually with none or bad **OCR**. The latter is due mostly to three factors that influence mainly the [layout analysis](https://ocr-d.de/en/workflows#layout-analysis) step of text recognition:
-
-   * Complex layouts (still a challenge for mainstream **OCR** toolsets e.g. [ocropy](https://github.com/tmbarchive/ocropy) and [tesseract](https://github.com/tesseract-ocr/tesseract))
-   * Degradation over time (e.g. stains, rips, erased ink) 
-   * Poor scanning quality (e.g. lighting contrast)
-
-This project aims to provide tools for better **layout analysis** (and therefore [full-text recognition](https://ocr-d.de/en/about)) on those documents and hopefully help building (a) searchable collection(s) of german-brazilian newspapers, making things easier and simpler for future research on german colonization in Brazil.
+In the scope of the [*dbp digital* project](https://dokumente.ufpr.br/en/dbpdigital.html), this project aims to provide an [OCR-D](https://ocr-d.de/) compliant toolset for [optical layout recognition/analysis](https://en.wikipedia.org/wiki/Document_layout_analysis) on images of historical german-language documents published in Brazil during the 19th and 20th centuries, focusing on periodical publications.
 
 Table of contents
 =================
@@ -17,7 +9,8 @@ Table of contents
 <!--ts-->
    * [German-Brazilian Newspapers (gbn)](#german-brazilian-newspapers-(gbn))
    * [Table of contents](#table-of-contents)
-   * [Overview](#overview)
+   * [About](#about)
+   * [History](#history)
    * [Library (gbn.lib)](#library-(gbn.lib))
       * [extract](#extract)
       * [predict](#predict)
@@ -31,17 +24,37 @@ Table of contents
    * [Recommended Workflow](#recommended-workflow)
 <!--te-->
 
-Overview
-========
+About
+=====
 
-This project is based on [ocrd-sbb-textline-detector](https://github.com/qurator-spk/sbb_textline_detection). While I was studying the available **OCR** solutions and the [OCR-D framework](https://ocr-d.de/en/) came to my knowledge, I took a small set of considerably degraded newspaper pages and started playing around with the available tools. This tool in particular caught my attention because, besides some **false negative** and **undersegmentation** issues when detecting the text lines, the overall result was considerably better than the ones obtained through the previously mentioned mainstream solutions.
+Although there is a considerable amount of digitized brazilian-published german-language periodicals available online (e.g. the [*dbp digital* collection](https://dokumente.ufpr.br/en/dbpdigital.html) itself and the [*German-language periodicals* section of the Brazilian (National) Digital Library](http://memoria.bn.br/docreader/docmulti.aspx?bib=ger)), document image understanding is still a challenge. While generic [OCR](https://en.wikipedia.org/wiki/Optical_character_recognition) solutions will work out of the box with typical everyday-life documents, it is a different story for the historical newspapers due to several factors:
 
-Since the original tool is monolithical by design, enclosing several [processing steps](https://ocr-d.de/en/workflows) in a single command line, not much could be done for improving the results through parameter tuning and switching its processing steps by other [OCR-D](https://ocr-d.de/en/) modules was not possible. Therefore, this project was created with the intent of replicating the functionality of the [ocrd-sbb-textline-detector](https://github.com/qurator-spk/sbb_textline_detection) into several smaller tools, allowing a more modular and customizable workflow.
+   * Complex layouts (still a challenge for mainstream OCR toolsets e.g. [ocropy](https://github.com/tmbarchive/ocropy) and [tesseract](https://github.com/tesseract-ocr/tesseract))
+   * Degradation over time (e.g. stains, rips, erased ink) 
+   * Poor scanning quality (e.g. lighting contrast)
+
+This project aims to provide tools for better **layout analysis** (and therefore [full-text recognition](https://ocr-d.de/en/about)) on those document images and hopefully help building and improving searchable collections of german-brazilian documents, making things easier and simpler for future research on german colonization in Brazil.
+
+History
+=======
+
+[ARAUJO 2019](https://acervodigital.ufpr.br/handle/1884/63706) built the [German-Brazilian Newspapers (GBN) dataset](https://web.inf.ufpr.br/vri/databases/gbn/) with a subset of the document images digitized by the [*dbp digital* project](https://dokumente.ufpr.br/en/dbpdigital.html) and proposed two methods for pixel classification on them. Taking this as a starting point, I started researching open-source projects which could be useful resources on building an actual tool. On those researches, the [OCR-D framework](https://ocr-d.de/en/) came to my knowledge, and I started using their recommended compliant tools for practical experiments on the newspapers.
+
+The [ocrd-sbb-textline-detector](https://github.com/qurator-spk/sbb_textline_detection) tool combined several deep learning models and image processing steps in order to segment the text regions of each input page image, breaking them down to the line level. It performed surprisingly good with the small subset of severely degraded pages I was using for the tests. Although, there were some small issues that needed to be fixed in order to get more accurate results.
+
+Since the original implementation was monolithical by design, enclosing several [processing steps](https://ocr-d.de/en/workflows) in a single command line, not much could be done for improving the results through parameter tuning and switching its processing steps by other [OCR-D](https://ocr-d.de/en/) modules was not possible. Therefore, this project was created with the intent of replicating the functionality of the [ocrd-sbb-textline-detector](https://github.com/qurator-spk/sbb_textline_detection) into several smaller tools, allowing a more modular and customizable workflow.
+
+The functionality was also extended along the way, being the most significant changes:
+   * Aggregation of [another project from qurator](https://github.com/qurator-spk/sbb_binarization), generating the tool [ocrd-gbn-sbb-binarize](#ocrd-gbn-sbb-binarize)
+   * Use of the page prediction as a mask (see [ocrd-gbn-sbb-crop](#ocrd-gbn-sbb-crop) for details)
+   * Simpler and faster patch splitting (see [ocrd-gbn-sbb-predict](#ocrd-gbn-sbb-predict) for details)
+   * Region-level predicting (see [ocrd-gbn-sbb-segment](#ocrd-gbn-sbb-segment) for details)
+   * Caching predictions for multiple runs (see [ocrd-gbn-sbb-segment](#ocrd-gbn-sbb-segment) for details)
 
 Library (gbn.lib)
 =================
 
-This project went for a more **object-oriented** architecture than the original implementation. The most used routines are stored as objects and functions in a small library, and the processors do all the deep learning and image processing by interfacing with them.
+This project went for a more **object-oriented** architecture than the original implementation. The most used routines are stored as objects and functions in a small library, and they are the interfaces the processors are supposed to use to do all the deep learning and image processing.
 
 extract
 -------
@@ -55,12 +68,12 @@ predict
 
 Stores the **Predicting** class. It is used to *predict* the labels of each pixel of an image given a model.
 
-It should be interfaced with by constructing an object for each model to be run, then performing the prediction for an image through the **Predicting.predict** method. All the model loading and splitting-into-patches operations are handled internally.
+It should be interfaced with by constructing an object for each model to be run, then performing the prediction for an image through the **Predicting.predict** method. All the model loading/execution and patch splitting operations are handled internally.
 
 util
 ----
 
-Stores generic image processing and workspace handling functions that are used by nearly every tool (e.g. converting image formats).
+Stores generic image processing and workspace handling functions that are used by nearly every tool (e.g. converting image formats, slicing images given bounding boxes).
 
 Tools
 =====
@@ -326,7 +339,7 @@ Models
 
 Currently the models being used are the ones provided by the [qurator team](https://github.com/qurator-spk). Models for binarization can be found [here](https://qurator-data.de/sbb_binarization/) and for cropping and segmentation [here](https://qurator-data.de/sbb_textline_detector/).
 
-There are plans for building a training dataset composed of german-brazilian publications in the near future.
+There are plans for extending the [GBN dataset](https://web.inf.ufpr.br/vri/databases/gbn/) with more degraded document pages as an attempt to train robust models in the near future.
 
 Recommended Workflow
 ====================
