@@ -1,7 +1,7 @@
 German-Brazilian Newspapers (gbn)
 =================================
 
-In the scope of the [*dbp digital* project](https://dokumente.ufpr.br/en/dbpdigital.html), this project aims to provide an [OCR-D](https://ocr-d.de/) compliant toolset for [optical layout recognition/analysis](https://en.wikipedia.org/wiki/Document_layout_analysis) on images of historical german-language documents published in Brazil during the 19th and 20th centuries, focusing on periodical publications.
+This project aims at providing an [OCR-D](https://ocr-d.de/) compliant toolset for [optical layout recognition/analysis](https://en.wikipedia.org/wiki/Document_layout_analysis) on images of historical german-language documents published in Brazil during the 19th and 20th centuries, focusing on periodical publications.
 
 Table of contents
 =================
@@ -10,12 +10,11 @@ Table of contents
    * [German-Brazilian Newspapers (gbn)](#german-brazilian-newspapers-(gbn))
    * [Table of contents](#table-of-contents)
    * [About](#about)
-   * [History](#history)
    * [Library (gbn.lib)](#library-(gbn.lib))
       * [extract](#extract)
       * [predict](#predict)
       * [util](#util)
-   * [Tools](#tools)
+   * [Tools (gbn.sbb)](#tools-(gbn.sbb))
       * [ocrd-gbn-sbb-predict](#ocrd-gbn-sbb-predict)
       * [ocrd-gbn-sbb-binarize](#ocrd-gbn-sbb-binarize)
       * [ocrd-gbn-sbb-crop](#ocrd-gbn-sbb-crop)
@@ -27,29 +26,13 @@ Table of contents
 About
 =====
 
-Although there is a considerable amount of digitized brazilian-published german-language periodicals available online (e.g. the [*dbp digital* collection](https://dokumente.ufpr.br/en/dbpdigital.html) itself and the [*German-language periodicals* section of the Brazilian (National) Digital Library](http://memoria.bn.br/docreader/docmulti.aspx?bib=ger)), document image understanding is still a challenge. While generic [OCR](https://en.wikipedia.org/wiki/Optical_character_recognition) solutions will work out of the box with typical everyday-life documents, it is a different story for the historical newspapers due to several factors:
+Although there is a considerable amount of digitized brazilian-published german-language periodicals available online (e.g. the [*dbp digital* collection](https://dokumente.ufpr.br/en/dbpdigital.html) and the [*German-language periodicals* section of the Brazilian (National) Digital Library](http://memoria.bn.br/docreader/docmulti.aspx?bib=ger)), document image understanding of these prints is far from being optimal. While generic [OCR](https://en.wikipedia.org/wiki/Optical_character_recognition) solutions will work out of the box with typical everyday-life documents, it is a different story for historical newspapers like those due to several factors:
 
    * Complex layouts (still a challenge for mainstream OCR toolsets e.g. [ocropy](https://github.com/tmbarchive/ocropy) and [tesseract](https://github.com/tesseract-ocr/tesseract))
    * Degradation over time (e.g. stains, rips, erased ink) 
    * Poor scanning quality (e.g. lighting contrast)
 
-This project aims to provide tools for better **layout analysis** (and therefore [full-text recognition](https://ocr-d.de/en/about)) on those document images and hopefully help building and improving searchable collections of german-brazilian documents, making things easier and simpler for future research on german colonization in Brazil.
-
-History
-=======
-
-[ARAUJO 2019](https://acervodigital.ufpr.br/handle/1884/63706) built the [German-Brazilian Newspapers (GBN) dataset](https://web.inf.ufpr.br/vri/databases/gbn/) with a subset of the document images digitized by the [*dbp digital* project](https://dokumente.ufpr.br/en/dbpdigital.html) and proposed two methods for pixel classification on them. Taking this as a starting point, I started researching open-source projects which could be useful resources on building an actual tool. On those researches, the [OCR-D framework](https://ocr-d.de/en/) came to my knowledge, and I started using their recommended compliant tools for practical experiments on the newspapers.
-
-The [ocrd-sbb-textline-detector](https://github.com/qurator-spk/sbb_textline_detection) tool combined several deep learning models and image processing steps in order to segment the text regions of each input page image, breaking them down to the line level. It performed surprisingly good with the small subset of severely degraded pages I was using for the tests. Although, there were some small issues that needed to be fixed in order to get more accurate results.
-
-Since the original implementation was monolithical by design, enclosing several [processing steps](https://ocr-d.de/en/workflows) in a single command line, not much could be done for improving the results through parameter tuning and switching its processing steps by other [OCR-D](https://ocr-d.de/en/) modules was not possible. Therefore, this project was created with the intent of replicating the functionality of the [ocrd-sbb-textline-detector](https://github.com/qurator-spk/sbb_textline_detection) into several smaller tools, allowing a more modular and customizable workflow.
-
-The functionality was also extended along the way, being the most significant changes:
-   * Aggregation of [another project from qurator](https://github.com/qurator-spk/sbb_binarization), generating the tool [ocrd-gbn-sbb-binarize](#ocrd-gbn-sbb-binarize)
-   * Use of the page prediction as a mask (see [ocrd-gbn-sbb-crop](#ocrd-gbn-sbb-crop) for details)
-   * Simpler and faster patch splitting (see [ocrd-gbn-sbb-predict](#ocrd-gbn-sbb-predict) for details)
-   * Region-level predicting (see [ocrd-gbn-sbb-segment](#ocrd-gbn-sbb-segment) for details)
-   * Caching predictions for multiple runs (see [ocrd-gbn-sbb-segment](#ocrd-gbn-sbb-segment) for details)
+In order to achieve better [full-text recognition](https://ocr-d.de/en/about) results on the target documents, this project relies on two building blocks: The [German-Brazilian Newspapers dataset](https://web.inf.ufpr.br/vri/databases/gbn/) and the [ocrd-sbb-textline-detector tool](https://github.com/qurator-spk/sbb_textline_detection). The first as a role-model for pioneering on layout analysis of german-brazilian documents (and also as a source of testing data) and the latter as a reference implementation of a robust layout analysis workflow for german-language documents. This project itself was forked from [ocrd-sbb-textline-detector](https://github.com/qurator-spk/sbb_textline_detection), aiming at replicating the original tool's functionality into several smaller modules and extending it for more powerful workflows.
 
 Library (gbn.lib)
 =================
@@ -75,8 +58,8 @@ util
 
 Stores generic image processing and workspace handling functions that are used by nearly every tool (e.g. converting image formats, slicing images given bounding boxes).
 
-Tools
-=====
+Tools (gbn.sbb)
+===============
 
 ocrd-gbn-sbb-predict
 --------------------
