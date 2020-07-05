@@ -9,9 +9,15 @@ class Predicting():
     Methods for predicting characteristics of images given a deep learning model
     '''
     def __init__(self, model_path, prediction_algorithm):
-        # Init session and model:
-        self.session = self.init_session()
-        self.model = self.load_model(model_path)
+        # Get default tensorflow session:
+        self.session = tf.get_default_session()
+
+        # If none, initiate a new session:
+        if self.session is None:
+            self.init_session()
+
+        # Load Keras model:
+        self.model = keras.models.load_model(model_path, compile=False)
 
         # Set predict() method to selected algorithm:
         if prediction_algorithm == "whole_image":
@@ -25,19 +31,12 @@ class Predicting():
 
     def init_session(self):
         '''
-        Initiates a Tensorflow session
+        Initiates a session allowing GPU growth
         '''
         cfg = tf.ConfigProto()
-
         cfg.gpu_options.allow_growth = True
 
-        return tf.InteractiveSession()
-
-    def load_model(self, model_path):
-        '''
-        Loads a model given its file path using Keras
-        '''
-        return keras.models.load_model(model_path, compile=False)
+        self.session = tf.InteractiveSession()
 
     def predict_whole_image(self, image):
         '''
