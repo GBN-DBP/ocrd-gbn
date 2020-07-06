@@ -8,7 +8,7 @@ class Predicting():
     '''
     Methods for predicting characteristics of images given a deep learning model
     '''
-    def __init__(self, model_path, prediction_algorithm):
+    def __init__(self, model_path, shaping):
         # Get default tensorflow session:
         self.session = tf.get_default_session()
 
@@ -19,15 +19,21 @@ class Predicting():
         # Load Keras model:
         self.model = keras.models.load_model(model_path, compile=False)
 
+        # Get input and output shapes of model:
+        self.input_shape = self.model.input_shape
+        self.output_shape = self.model.output_shape
+
+        # Replace 'None' by '1' for valid shapes:
+        self.input_shape[0] = 1
+        self.output_shape[0] = 1
+
         # Set predict() method to selected algorithm:
-        if prediction_algorithm == "whole_image":
-            self.predict = self.predict_whole_image
-        elif prediction_algorithm == "sbb_patches":
-            self.predict = self.predict_sbb_patches
-        elif prediction_algorithm == "gbn_patches":
-            self.predict = self.predict_gbn_patches
+        if shaping == "resize":
+            self.predict = self.predict_resize
+        elif shaping == "split":
+            self.predict = self.predict_split
         else:
-            raise ValueError("Invalid prediction algorithm: {}".format(prediction_algorithm))
+            raise ValueError("Invalid shaping algorithm: {}".format(shaping))
 
     def init_session(self):
         '''
@@ -38,201 +44,95 @@ class Predicting():
 
         self.session = tf.InteractiveSession()
 
-    def predict_whole_image(self, image):
+    def perform_prediction(self, image):
         '''
-        Applies model to given image by resshaping the input image to the model dimensions (as implemented originally on sbb_textline_detector)
+        Performs the actual prediction given an image whose shape matches the model input
         '''
-        img_height_model = self.model.layers[-1].output_shape[1]
-        img_width_model = self.model.layers[-1].output_shape[2]
+        # Reshape image to model input shape (tensor):
+        image = image.reshape(self.input_shape)
 
-        img = cv2.resize(image / 255.0, (img_width_model, img_height_model), interpolation=cv2.INTER_NEAREST)
+        # Perform prediction:
+        prediction = self.model.predict(image)
 
-        # Encapsulate image array inside a single-element array:
-        label_p_pred = self.model.predict(img.reshape(1, img.shape[0], img.shape[1], img.shape[2]))
+        # Reshape prediction to image-like representation:
+        prediction = prediction.reshape(self.output_shape[1:])
 
-        # Reshape prediction into a 2-dimensional array with a single color channel (binary):
-        seg = np.argmax(label_p_pred, axis=3)[0]
+        # Convert prediction from displaying likeliness of all labels to displaying the most likely label:
+        prediction = np.argmax(prediction, axis=2).astype(np.uint8)
 
-        return cv2.resize(seg, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_NEAREST).astype(np.uint8)
+        return prediction
 
-    def predict_sbb_patches(self, image):
+    def predict_resize(self, image):
         '''
-        Applies model to given image by splitting the input image in patches of the same dimensions as the model (as implemented originally on sbb_textline_detector)
+        Performs a prediction on the given image by resizing it to the model input shape
         '''
-        img_height_model = self.model.layers[-1].output_shape[1]
-        img_width_model = self.model.layers[-1].output_shape[2]
+        # Get original image shape:
+        image_shape = image.shape
 
-        margin = int(0.1 * img_width_model)
-
-        width_mid = img_width_model - 2 * margin
-        height_mid = img_height_model - 2 * margin
-
-        img = image / 255.0
-
-        img_h = img.shape[0]
-        img_w = img.shape[1]
-
-        prediction_true = np.zeros((img_h, img_w, 3))
-
-        mask_true = np.zeros((img_h, img_w))
-
-        nxf = math.ceil(img_w / float(width_mid))
-        nyf = math.ceil(img_h / float(height_mid))
-
-        for i in range(nxf):
-            for j in range(nyf):
-                index_x_d = i * width_mid
-                index_x_u = index_x_d + img_width_model
-
-                index_y_d = j * height_mid
-                index_y_u = index_y_d + img_height_model
-
-                if index_x_u > img_w:
-                    index_x_u = img_w
-                    index_x_d = img_w - img_width_model
-                if index_y_u > img_h:
-                    index_y_u = img_h
-                    index_y_d = img_h - img_height_model
-
-                img_patch = img[index_y_d:index_y_u, index_x_d:index_x_u, :]
-
-                label_p_pred = self.model.predict(img_patch.reshape(1, img_patch.shape[0], img_patch.shape[1], img_patch.shape[2]))
-
-                seg = np.argmax(label_p_pred, axis=3)[0]
-                seg_color = np.repeat(seg[:, :, np.newaxis], 3, axis=2)
-
-                if i==0 and j==0:
-                    seg_color = seg_color[0:seg_color.shape[0] - margin, 0:seg_color.shape[1] - margin, :]
-                    seg = seg[0:seg.shape[0] - margin, 0:seg.shape[1] - margin]
-
-                    mask_true[index_y_d + 0:index_y_u - margin, index_x_d + 0:index_x_u - margin] = seg
-                    prediction_true[index_y_d + 0:index_y_u - margin, index_x_d + 0:index_x_u - margin,
-                    :] = seg_color
-                        
-                elif i==nxf-1 and j==nyf-1:
-                    seg_color = seg_color[margin:seg_color.shape[0] - 0, margin:seg_color.shape[1] - 0, :]
-                    seg = seg[margin:seg.shape[0] - 0, margin:seg.shape[1] - 0]
-
-                    mask_true[index_y_d + margin:index_y_u - 0, index_x_d + margin:index_x_u - 0] = seg
-                    prediction_true[index_y_d + margin:index_y_u - 0, index_x_d + margin:index_x_u - 0,
-                    :] = seg_color
-                        
-                elif i==0 and j==nyf-1:
-                    seg_color = seg_color[margin:seg_color.shape[0] - 0, 0:seg_color.shape[1] - margin, :]
-                    seg = seg[margin:seg.shape[0] - 0, 0:seg.shape[1] - margin]
-
-                    mask_true[index_y_d + margin:index_y_u - 0, index_x_d + 0:index_x_u - margin] = seg
-                    prediction_true[index_y_d + margin:index_y_u - 0, index_x_d + 0:index_x_u - margin,
-                    :] = seg_color
-                        
-                elif i==nxf-1 and j==0:
-                    seg_color = seg_color[0:seg_color.shape[0] - margin, margin:seg_color.shape[1] - 0, :]
-                    seg = seg[0:seg.shape[0] - margin, margin:seg.shape[1] - 0]
-
-                    mask_true[index_y_d + 0:index_y_u - margin, index_x_d + margin:index_x_u - 0] = seg
-                    prediction_true[index_y_d + 0:index_y_u - margin, index_x_d + margin:index_x_u - 0,
-                    :] = seg_color
-                        
-                elif i==0 and j!=0 and j!=nyf-1:
-                    seg_color = seg_color[margin:seg_color.shape[0] - margin, 0:seg_color.shape[1] - margin, :]
-                    seg = seg[margin:seg.shape[0] - margin, 0:seg.shape[1] - margin]
-
-                    mask_true[index_y_d + margin:index_y_u - margin, index_x_d + 0:index_x_u - margin] = seg
-                    prediction_true[index_y_d + margin:index_y_u - margin, index_x_d + 0:index_x_u - margin,
-                    :] = seg_color
-                        
-                elif i==nxf-1 and j!=0 and j!=nyf-1:
-                    seg_color = seg_color[margin:seg_color.shape[0] - margin, margin:seg_color.shape[1] - 0, :]
-                    seg = seg[margin:seg.shape[0] - margin, margin:seg.shape[1] - 0]
-
-                    mask_true[index_y_d + margin:index_y_u - margin, index_x_d + margin:index_x_u - 0] = seg
-                    prediction_true[index_y_d + margin:index_y_u - margin, index_x_d + margin:index_x_u - 0,
-                    :] = seg_color
-                        
-                elif i!=0 and i!=nxf-1 and j==0:
-                    seg_color = seg_color[0:seg_color.shape[0] - margin, margin:seg_color.shape[1] - margin, :]
-                    seg = seg[0:seg.shape[0] - margin, margin:seg.shape[1] - margin]
-
-                    mask_true[index_y_d + 0:index_y_u - margin, index_x_d + margin:index_x_u - margin] = seg
-                    prediction_true[index_y_d + 0:index_y_u - margin, index_x_d + margin:index_x_u - margin,
-                    :] = seg_color
-                        
-                elif i!=0 and i!=nxf-1 and j==nyf-1:
-                    seg_color = seg_color[margin:seg_color.shape[0] - 0, margin:seg_color.shape[1] - margin, :]
-                    seg = seg[margin:seg.shape[0] - 0, margin:seg.shape[1] - margin]
-
-                    mask_true[index_y_d + margin:index_y_u - 0, index_x_d + margin:index_x_u - margin] = seg
-                    prediction_true[index_y_d + margin:index_y_u - 0, index_x_d + margin:index_x_u - margin,
-                    :] = seg_color
-
-                else:
-                    seg_color = seg_color[margin:seg_color.shape[0] - margin, margin:seg_color.shape[1] - margin, :]
-                    seg = seg[margin:seg.shape[0] - margin, margin:seg.shape[1] - margin]
-
-                    mask_true[index_y_d + margin:index_y_u - margin, index_x_d + margin:index_x_u - margin] = seg
-                    prediction_true[index_y_d + margin:index_y_u - margin, index_x_d + margin:index_x_u - margin,
-                    :] = seg_color
-
-        return prediction_true.astype(np.uint8)
-
-    def predict_gbn_patches(self, image):
-        '''
-        Applies model to given image by splitting the input image in patches of the same dimensions as the model (without the bordering and redundancy from sbb_textline_detector)
-        '''
-        # Get model input dimensions:
-        model_h = self.model.layers[-1].output_shape[1]
-        model_w = self.model.layers[-1].output_shape[2]
-
-        # Get patch dimensions (model input):
-        patch_h = model_h
-        patch_w = model_w
-
-        # Map pixels from [0,1] (binary) to [0,255] (grayscale):
+        # Map pixels from [0, 255] (grayscale) to [0, 1] (binary):
         image = image / 255.0
 
-        # Get original image dimensions:
-        img_h = image.shape[0]
-        img_w = image.shape[1]
+        # Resize image to input shape:
+        image = cv2.resize(image, self.input_shape[1:-1], interpolation=cv2.INTER_NEAREST)
+
+        # Perform prediction:
+        prediction = self.perform_prediction(image)
+
+        # Resize prediction to original image shape:
+        return cv2.resize(prediction, image_shape[:-1], interpolation=cv2.INTER_NEAREST)
+
+    def predict_split(self, image):
+        '''
+        Performs a prediction on the given image by splitting it into patches with the same shape as the model input shape
+        '''
+        # Get original image shape:
+        image_shape = image.shape
+
+        # Patch shape is equal to the height and width of model input:
+        patch_shape = (self.input_shape[1], self.input_shape[2])
 
         # Get padding for splitting image into equal-sized patches:
-        padding_h = patch_h - (img_h % patch_h)
-        padding_w = patch_w - (img_w % patch_w)
+        padding = (patch_shape[0] - (image_shape[0] % patch_shape[0]), patch_shape[1] - (image_shape[1] % patch_shape[1]))
 
         # Split padding equally around the image:
-        padding_top = math.floor(padding_h / 2)
-        padding_bottom = math.ceil(padding_h/ 2)
-        padding_left = math.floor(padding_w / 2)
-        padding_right = math.ceil(padding_w/ 2)
+        padding_top = math.floor(padding[0] / 2)
+        padding_bottom = math.ceil(padding[0]/ 2)
+        padding_left = math.floor(padding[1] / 2)
+        padding_right = math.ceil(padding[1] / 2)
 
         # Apply padding:
-        padded_img = cv2.copyMakeBorder(image, padding_top, padding_bottom, padding_left, padding_right, cv2.BORDER_CONSTANT, (255, 255, 255))
+        image = cv2.copyMakeBorder(image, padding_top, padding_bottom, padding_left, padding_right, cv2.BORDER_CONSTANT, (255, 255, 255))
+
+        # Map pixels from [0, 255] (grayscale) to [0, 1] (binary):
+        image = image / 255.0
 
         # Get number of patches per dimension:
-        nyf = int(padded_img.shape[0] / patch_h)
-        nxf = int(padded_img.shape[1] / patch_w)
+        nyf = int(image.shape[0] / patch_shape[0])
+        nxf = int(image.shape[1] / patch_shape[1])
 
-        # Predicted unbordered patches must be written to the canvas:
-        canvas = np.zeros((padded_img.shape[0], padded_img.shape[1]))
+        # Blank (black) image to write the patch predictions to:
+        canvas = np.zeros(image.shape[:-1], dtype=np.uint8)
 
         for i in range(nxf):
             for j in range(nyf):
-                xd = i * patch_w
-                xu = xd + patch_w
+                # Get vertical coordinates of current patch:
+                yd = j * patch_shape[0]
+                yu = yd + patch_shape[0]
 
-                yd = j * patch_h
-                yu = yd + patch_h
+                # Get horizontal coordinates of current patch:
+                xd = i * patch_shape[1]
+                xu = xd + patch_shape[1]
 
                 # Get patch:
-                patch = padded_img[yd:yu, xd:xu]
+                patch = image[yd:yu, xd:xu]
 
-                # Make prediction:
-                pred = self.model.predict(patch.reshape(1, patch.shape[0], patch.shape[1], patch.shape[2]))
-
-                # Reshape prediction into a 2-dimensional array with a single color channel (binary):
-                pred = np.argmax(pred, axis=3)[0]
+                # Perform prediction:
+                prediction = self.perform_prediction(patch)
 
                 # Add patch to canvas:
-                canvas[yd:yd+patch_h, xd:xd+patch_w] = pred
+                canvas[yd:yd+patch_shape[0], xd:xd+patch_shape[1]] = prediction
 
-        # Remove padding and return prediction image:
-        return canvas[padding_top+1:padding_top+1+img_h, padding_left+1:padding_left+1+img_w].astype(np.uint8)
+        # Remove padding from canvas of predictions:
+        prediction = canvas[padding_top+1:padding_top+1+image_shape[0], padding_left+1:padding_left+1+image_shape[1]]
+
+        return prediction
