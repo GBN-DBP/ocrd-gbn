@@ -76,8 +76,8 @@ class OcrdGbnSbbSegment(Processor):
         self._save_segment_image(
             segment,
             segment_prediction,
-            segment_suffix + self.parameter['model'].translate(str.maketrans({'/': '_', '.': '_'})),
-            self.parameter['model'],
+            segment_suffix + predictor.model_path.translate(str.maketrans({'/': '_', '.': '_'})),
+            predictor.model_path,
             file_grp=FILEGRP_PRED
         )
 
