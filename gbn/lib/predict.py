@@ -22,13 +22,9 @@ class Predicting():
         # Load Keras model:
         self.model = keras.models.load_model(model_path, compile=False)
 
-        # Get input and output shapes of model:
-        self.input_shape = self.model.input_shape
-        self.output_shape = self.model.output_shape
-
-        # Replace 'None' by '1' for valid shapes:
-        self.input_shape[0] = 1
-        self.output_shape[0] = 1
+        # Get input and output shapes of model, replacing None by 1:
+        self.input_shape = (1, self.model.input_shape[1], self.model.input_shape[2], self.model.input_shape[3])
+        self.output_shape = (1, self.model.output_shape[1], self.model.output_shape[2], self.model.output_shape[3])
 
         # Set predict() method to selected algorithm:
         if shaping == "resize":
