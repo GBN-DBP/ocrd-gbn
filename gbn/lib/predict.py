@@ -9,6 +9,9 @@ class Predicting():
     Methods for predicting characteristics of images given a deep learning model
     '''
     def __init__(self, model_path, shaping):
+        self.model_path = model_path
+        self.shaping = shaping
+
         # Get default tensorflow session:
         self.session = tf.get_default_session()
 
