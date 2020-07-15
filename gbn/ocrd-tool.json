@@ -7,7 +7,7 @@
       "categories": [
         "Layout analysis"
       ],
-      "description": "Predicts pixels of input image given a model and outputs the labels given to each pixel as a binary image",
+      "description": "Classifies pixels of input images given a binary (two classes) model and outputs the labels given to each of them as a binary image",
       "steps": [
         "layout/analysis"
       ],
@@ -21,29 +21,28 @@
       "parameters": {
         "model": {
           "type": "string",
-          "format": "file",
-          "cacheable": true,
-          "description": "Path of model to be run"
+          "description": "Path to Keras model to be used",
+          "required": true,
+          "cacheable": true
         },
-        "prediction_algorithm": {
+        "shaping": {
           "type": "string",
+          "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
+          "required": true,
           "enum": [
-            "whole_image",
-            "sbb_patches",
-            "gbn_patches"
-          ],
-          "default": "gbn_patches",
-          "description": "How the image should be passed to the model (whole image or split in patches)"
+            "resize",
+            "split"
+          ]
         },
         "operation_level": {
           "type": "string",
+          "description": "PAGE XML hierarchy level to operate on",
+          "default": "page",
           "enum": [
             "page",
             "region",
             "line"
-          ],
-          "default": "page",
-          "description": "PAGE XML hierarchy level to operate on"
+          ]
         }
       }
     },
@@ -53,7 +52,7 @@
         "Image preprocessing",
         "Layout analysis"
       ],
-      "description": "Binarizes the input images using deep learning",
+      "description": "Binarizes the input images by predicting the foreground pixels",
       "steps": [
         "preprocessing/optimization/binarization",
         "layout/analysis"
@@ -67,29 +66,33 @@
       "parameters": {
         "model": {
           "type": "string",
-          "format": "file",
-          "cacheable": true,
-          "description": "Path of model to be run"
+          "description": "Path to Keras model to be used",
+          "required": true,
+          "cacheable": true
         },
-        "prediction_algorithm": {
+        "shaping": {
           "type": "string",
+          "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
+          "default": "split",
           "enum": [
-            "whole_image",
-            "sbb_patches",
-            "gbn_patches"
-          ],
-          "default": "gbn_patches",
-          "description": "How the image should be passed to the model (whole image or split in patches)"
+            "resize",
+            "split"
+          ]
+        },
+        "caching": {
+          "type": "boolean",
+          "description": "Enables caching of prediction images from the workspace",
+          "default": true
         },
         "operation_level": {
           "type": "string",
+          "description": "PAGE XML hierarchy level to operate on",
+          "default": "page",
           "enum": [
             "page",
             "region",
             "line"
-          ],
-          "default": "page",
-          "description": "PAGE XML hierarchy level to operate on"
+          ]
         }
       }
     },
@@ -99,7 +102,7 @@
         "Image preprocessing",
         "Layout analysis"
       ],
-      "description": "Crops the input images using deep learning",
+      "description": "Crops the input images (must have been binarized) by predicting the actual page surfaces and setting the out-of-page pixels to background (masking them off)",
       "steps": [
         "preprocessing/optimization/cropping",
         "layout/analysis"
@@ -113,29 +116,33 @@
       "parameters": {
         "model": {
           "type": "string",
-          "format": "file",
-          "cacheable": true,
-          "description": "Path of model to be run"
+          "description": "Path to Keras model to be used",
+          "required": true,
+          "cacheable": true
         },
-        "prediction_algorithm": {
+        "shaping": {
           "type": "string",
+          "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
+          "default": "resize",
           "enum": [
-            "whole_image",
-            "sbb_patches",
-            "gbn_patches"
-          ],
-          "default": "whole_image",
-          "description": "How the image should be passed to the model (whole image or split in patches)"
+            "resize",
+            "split"
+          ]
+        },
+        "caching": {
+          "type": "boolean",
+          "description": "Enables caching of prediction images from the workspace",
+          "default": true
         },
         "operation_level": {
           "type": "string",
+          "description": "PAGE XML hierarchy level to operate on",
+          "default": "page",
           "enum": [
             "page",
             "region",
             "line"
-          ],
-          "default": "page",
-          "description": "PAGE XML hierarchy level to operate on"
+          ]
         }
       }
     },
@@ -144,9 +151,10 @@
       "categories": [
         "Layout analysis"
       ],
-      "description": "Segments text regions using deep learning",
+      "description": "Segments images by predicting the text regions and lines of the pages (page-level) or by predicting the text lines of the regions (region-level)",
       "steps": [
-        "layout/segmentation"
+        "layout/segmentation/region",
+        "layout/segmentation/line"
       ],
       "input_file_grp": [
         "OCR-D-DESKEW"
@@ -157,64 +165,72 @@
       "parameters": {
         "min_particle_size": {
           "type": "number",
-          "default": 0.00001,
-          "description": "Minimum ratio of the total segment area for a particle to be considered text"
+          "description": "Minimum ratio of the total segment area for a foreground particle to be considered text",
+          "default": 0.00001
         },
         "max_particle_size": {
           "type": "number",
-          "default": 1.0,
-          "description": "Maximum ratio of the total segment area for a particle to be considered text"
+          "description": "Maximum ratio of the total segment area for a foreground particle to be considered text",
+          "default": 1.0
         },
         "min_textline_density": {
           "type": "number",
-          "default": 0.1,
-          "description": "Minimum ratio of predicted text line pixels of a segment for it to be considered text"
+          "description": "Minimum ratio of pixels of a segment predicted as part of text lines for it to be considered a text segment",
+          "default": 0.1
         },
         "max_textline_density": {
           "type": "number",
-          "default": 1.0,
-          "description": "Maximum ratio of predicted text line pixels of a segment for it to be considered text"
+          "description": "Maximum ratio of pixels of a segment predicted as part of text lines for it to be considered a text segment",
+          "default": 1.0
         },
-        "textregion_src": {
+        "textregions_model": {
           "type": "string",
-          "format": "file",
-          "cacheable": true,
-          "description": "Path of model to be run or input file group for text region predictions"
+          "description": "Path to Keras model to be used for predicting text regions",
+          "default": null,
+          "cacheable": true
         },
-        "textline_src": {
+        "textregions_shaping": {
           "type": "string",
-          "format": "file",
-          "cacheable": true,
-          "description": "Path of model to be run or input file group for text line predictions"
-        },
-        "textregion_algorithm": {
-          "type": "string",
+          "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
+          "default": "split",
           "enum": [
-            "whole_image",
-            "sbb_patches",
-            "gbn_patches"
-          ],
-          "default": "gbn_patches",
-          "description": "How the image should be passed to the text region model"
+            "resize",
+            "split"
+          ]
         },
-        "textline_algorithm": {
+        "textlines_model": {
           "type": "string",
+          "description": "Path to Keras model to be used for predicting text lines",
+          "required": true,
+          "cacheable": true
+        },
+        "textlines_shaping": {
+          "type": "string",
+          "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
+          "default": "split",
           "enum": [
-            "whole_image",
-            "sbb_patches",
-            "gbn_patches"
-          ],
-          "default": "gbn_patches",
-          "description": "How the image should be passed to the text line model"
+            "resize",
+            "split"
+          ]
+        },
+        "caching": {
+          "type": "boolean",
+          "description": "Enables caching of prediction images from the workspace",
+          "default": true
+        },
+        "visualization": {
+          "type": "boolean",
+          "description": "Enables visualization of segmentation results by saving page images to the image file group. Page-level segmentation visualization consists of the text lines prediction (blue), the binary image foreground (white) and the segmented rectangular text regions (green). Region-level segmentation visualization consists of the original page images with outlines drawn on the segmented text lines (green)",
+          "default": false
         },
         "operation_level": {
           "type": "string",
+          "description": "PAGE XML hierarchy level to operate on",
+          "default": "page",
           "enum": [
             "page",
             "region"
-          ],
-          "default": "page",
-          "description": "PAGE XML hierarchy level to operate on"
+          ]
         }
       }
     }
