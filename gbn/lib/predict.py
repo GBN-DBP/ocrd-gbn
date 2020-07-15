@@ -72,13 +72,13 @@ class Predicting():
         image = image / 255.0
 
         # Resize image to input shape:
-        image = cv2.resize(image, self.input_shape[1:-1], interpolation=cv2.INTER_NEAREST)
+        image = cv2.resize(image, (self.input_shape[2], self.input_shape[1]), interpolation=cv2.INTER_NEAREST)
 
         # Perform prediction:
         prediction = self.perform_prediction(image)
 
         # Resize prediction to original image shape:
-        return cv2.resize(prediction, image_shape[:-1], interpolation=cv2.INTER_NEAREST)
+        return cv2.resize(prediction, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_NEAREST)
 
     def predict_split(self, image):
         '''
