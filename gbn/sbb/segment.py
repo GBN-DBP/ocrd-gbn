@@ -1,4 +1,4 @@
-from gbn.lib.util import resolve_box, pil_to_cv2_rgb, cv2_to_pil_rgb, pil_to_cv2_gray, cv2_to_pil_gray
+from gbn.lib.util import resolve_box, draw_box, pil_to_cv2_rgb, cv2_to_pil_rgb, pil_to_cv2_gray, cv2_to_pil_gray, gray_to_bgr, binary_to_mask
 from gbn.lib.predict import Predicting
 from gbn.lib.extract import Extracting
 from gbn.tool import OCRD_TOOL
@@ -9,14 +9,13 @@ from ocrd_models.ocrd_page import to_xml
 from ocrd_models.ocrd_page_generateds import AlternativeImageType, CoordsType, LabelsType, LabelType, MetadataItemType, TextLineType, TextRegionType
 from ocrd_utils import concat_padded, coordinates_for_segment, getLogger, MIMETYPE_PAGE, points_from_polygon
 
-import os.path
-import numpy as np
-import cv2
+from os.path import realpath, join
 
 TOOL = "ocrd-gbn-sbb-segment"
-
 LOG = getLogger("processor.OcrdGbnSbbSegment")
+
 FALLBACK_FILEGRP_IMG = "OCR-D-IMG-SEG"
+FILEGRP_PRED = "OCR-D-IMG-PRED"
 
 class OcrdGbnSbbSegment(Processor):
     def __init__(self, *args, **kwargs):
@@ -33,13 +32,157 @@ class OcrdGbnSbbSegment(Processor):
                 self.image_grp = FALLBACK_FILEGRP_IMG
                 LOG.info("No output file group for images specified, falling back to '%s'", FALLBACK_FILEGRP_IMG)
 
-    def _process_page(self, page, page_image, page_xywh, page_id, n, input_file, textregion_image, textline_image):
-        # Convert PIL to cv2 (grayscale):
-        page_image, alpha = pil_to_cv2_gray(page_image)
+    def _save_segment_image(self, segment, segment_image, segment_suffix, comments, file_grp=None):
+        # If no file group specified, use default group for images:
+        if file_grp is None:
+            file_grp = self.image_grp
 
+        # Get file ID of image to be saved:
+        file_id = self.input_file.ID.replace(self.input_file_grp, file_grp)
+
+        if file_id == self.input_file.ID:
+            file_id = concat_padded(file_grp, self.n)
+
+        # Concatenate suffix to ID:
+        file_id += segment_suffix
+
+        # Save image:
+        file_path = self.workspace.save_image_file(
+            segment_image,
+            file_id,
+            page_id=self.page_id,
+            file_grp=file_grp
+        )
+
+        # Add metadata about saved image:
+        segment.add_AlternativeImage(
+            AlternativeImageType(
+                filename=file_path,
+                comments=comments
+            )
+        )
+
+    def _predict_segment(self, segment, segment_image, segment_suffix, predictor):
+        # Convert PIL to cv2 (RGB):
+        segment_image, alpha = pil_to_cv2_rgb(segment_image)
+
+        # Get labels per-pixel and map them to grayscale:
+        segment_prediction = predictor.predict(segment_image) * 255
+
+        # Convert cv2 to PIL (grayscale):
+        segment_prediction = cv2_to_pil_gray(segment_prediction, alpha)
+
+        # Save prediction image as AlternativeImage of segment, setting the 'comments' field to the model path:
+        self._save_segment_image(
+            segment,
+            segment_prediction,
+            segment_suffix + self.parameter['model'].translate(str.maketrans({'/': '_', '.': '_'})),
+            self.parameter['model'],
+            file_grp=FILEGRP_PRED
+        )
+
+        return segment_prediction
+
+    def _get_page_prediction(self, predictor, page_selector="", page_filter="", prediction_filter=""):
+        # If caching is enabled:
+        if self.parameter['caching']:
+            try:
+                # Try to cache prediction image from PAGE:
+                page_prediction, page_xywh, _ = self.workspace.image_from_page(
+                    self.page,
+                    self.page_id,
+                    feature_selector=predictor.model_path,
+                    feature_filter=prediction_filter
+                )
+
+                return page_prediction, page_xywh
+            except:
+                LOG.info(
+                    "Unable to cache predictions of input file %i / %s given model %s. Performing prediction instead",
+                    self.n,
+                    self.input_file,
+                    predictor.model_path
+                )
+
+        # Get image from PAGE:
+        page_image, page_xywh, _ = self.workspace.image_from_page(
+            self.page,
+            self.page_id,
+            feature_selector=page_selector,
+            feature_filter=page_filter
+        )
+
+        # Perform prediction:
+        page_prediction = self._predict_segment(
+            self.page,
+            page_image,
+            "",
+            predictor
+        )
+
+        return page_prediction, page_xywh
+
+    def _get_segment_prediction(self, segment, segment_suffix, predictor, segment_selector="", segment_filter="", prediction_filter=""):
+        # If caching is enabled:
+        if self.parameter['caching']:
+            try:
+                # Try to cache prediction image from PAGE:
+                page_prediction, page_xywh, _ = self.workspace.image_from_page(
+                    self.page,
+                    self.page_id,
+                    feature_selector=predictor.model_path,
+                    feature_filter=prediction_filter
+                )
+
+                # Try to cache prediction image from segment:
+                segment_prediction, segment_xywh, _ = self.workspace.image_from_segment(
+                    segment,
+                    page_prediction,
+                    page_xywh,
+                    feature_selector=predictor.model_path,
+                    feature_filter=prediction_filter
+                )
+
+                return segment_prediction, segment_xywh
+            except:
+                LOG.info(
+                    "Unable to cache predictions of input file %i / %s given model %s. Performing prediction instead",
+                    self.n,
+                    self.input_file,
+                    predictor.model_path
+                )
+
+        # Get image from PAGE:
+        page_image, page_xywh, _ = self.workspace.image_from_page(
+            self.page,
+            self.page_id,
+            feature_selector=segment_selector,
+            feature_filter=segment_filter
+        )
+
+        # Get image from segment:
+        segment_image, segment_xywh = self.workspace.image_from_segment(
+            segment,
+            page_image,
+            page_xywh,
+            feature_selector=segment_selector,
+            feature_filter=segment_filter
+        )
+
+        # Perform prediction:
+        segment_prediction = self._predict_segment(
+            segment,
+            segment_image,
+            segment_suffix,
+            predictor
+        )
+
+        return segment_prediction, segment_xywh
+
+    def _process_page(self, page, page_image, page_xywh, textregions_prediction, textlines_prediction):
         # Construct characteristic extractor for text region prediction:
-        textregion_extractor = Extracting(
-            textregion_image,
+        textregions_extractor = Extracting(
+            textregions_prediction,
             contour_area_filter=(
                 self.parameter['min_particle_size'] * page.get_imageHeight() * page.get_imageWidth(),
                 self.parameter['max_particle_size'] * page.get_imageHeight() * page.get_imageWidth()
@@ -47,61 +190,63 @@ class OcrdGbnSbbSegment(Processor):
         )
 
         # Erode and dilate prediction image to separate "weakly connected" regions:
-        textregion_extractor.erode(4)
-        textregion_extractor.dilate(4)
+        textregions_extractor.erode(4)
+        textregions_extractor.dilate(4)
 
         # Analyse contours and boxes:
-        textregion_extractor.analyse_contours()
+        textregions_extractor.analyse_contours()
 
         # Filter out contours inside other contours:
-        textregion_extractor.filter_by_hierarchy()
+        textregions_extractor.filter_by_hierarchy()
 
         # Filter out contours that do not compose valid polygons:
-        textregion_extractor.filter_by_geometry()
+        textregions_extractor.filter_by_geometry()
 
         # Filter contours by area:
-        textregion_extractor.filter_by_area()
+        textregions_extractor.filter_by_area()
 
         # Construct characteristic extractor for text line prediction:
-        textline_extractor = Extracting(
-            textline_image,
+        textlines_extractor = Extracting(
+            textlines_prediction,
             fg_density_filter=(
-                self.parameter['min_textline_density'],
-                self.parameter['max_textline_density']
+                self.parameter['min_textlines_density'],
+                self.parameter['max_textlines_density']
             )
         )
 
         # Load bounding boxes of text regions into the text line extractor:
-        textline_extractor.import_boxes(textregion_extractor.export_boxes())
+        textlines_extractor.import_boxes(textregions_extractor.export_boxes())
 
         # Filter boxes by textline density:
-        textline_extractor.filter_by_foreground_density()
+        textlines_extractor.filter_by_foreground_density()
 
         # Merge overlapping:
-        textline_extractor.merge_overlapping_boxes()
+        textlines_extractor.merge_overlapping_boxes()
 
         # Segment clearly distinct regions of the page vertically using the pixels predicted as text lines:
-        textline_extractor.split_boxes_by_continuity(axis=1, global_projection=True)
+        textlines_extractor.split_boxes_by_continuity(axis=1, global_projection=True)
 
         # Segment separate text regions horizontally using the pixels predicted as text lines:
-        textline_extractor.split_boxes_by_continuity(axis=0)
-        textline_extractor.split_boxes_by_standard_deviation(axis=0, n=4)
+        textlines_extractor.split_boxes_by_continuity(axis=0)
+        textlines_extractor.split_boxes_by_standard_deviation(axis=0, n=4)
 
         # Dilate text line predictions a bit to join ones that are close to each other:
-        textline_extractor.dilate(2)
+        textlines_extractor.dilate(2)
 
         # Segment separate text regions vertically using the pixels predicted as text lines:
-        textline_extractor.split_boxes_by_continuity(axis=1)
+        textlines_extractor.split_boxes_by_continuity(axis=1)
 
         # Resize text regions horizontally using the pixels predicted as text lines:
-        textline_extractor.split_boxes_by_continuity(axis=0)
+        textlines_extractor.split_boxes_by_continuity(axis=0)
 
         # Filter boxes by textline density:
-        textline_extractor.filter_by_foreground_density()
+        textlines_extractor.filter_by_foreground_density()
 
         # Save rectangles of boxes as text regions:
-        for idx, box in enumerate(textline_extractor.boxes):
-            x0, y0, x1, y1 = resolve_box(box)
+        for region_idx, region_box in enumerate(textlines_extractor.boxes):
+            region_suffix = "_region%04d" % region_idx
+
+            x0, y0, x1, y1 = resolve_box(region_box)
 
             polygon = [
                 [x0, y0],
@@ -113,68 +258,64 @@ class OcrdGbnSbbSegment(Processor):
             # Convert back to absolute (page) coordinates:
             polygon = coordinates_for_segment(polygon, page_image, page_xywh)
 
-            region_id = page_id + "_region%04d" % idx
-
             # Save text region:
             page.add_TextRegion(
                 TextRegionType(
-                    id=region_id,
+                    id=self.page_id+region_suffix,
                     Coords=CoordsType(
                         points=points_from_polygon(polygon)
                     )
                 )
             )
 
-        # DEBUG ONLY
-        txtline_mask = (textline_image / 255).astype(np.bool_)
-        bg_mask = (page_image / 255).astype(np.bool_)
+        if self.parameter['visualization']:
+            # Convert PIL to cv2 (grayscale):
+            page_image, alpha = pil_to_cv2_gray(page_image)
 
-        page_image = cv2.cvtColor(page_image, cv2.COLOR_GRAY2BGR)
+            # Get masks of both binary image (foreground prediction) and text lines prediction:
+            prediction_mask = binary_to_mask(textlines_prediction)
+            page_mask = binary_to_mask(page_image)
 
-        page_image[bg_mask == True] = np.array([0, 0, 0])
-        page_image[txtline_mask == True] = np.array([255, 0, 0])
-        page_image[bg_mask == False] = np.array([255, 255, 255])
+            # Convert to BGR:
+            visualization = gray_to_bgr(page_image)
 
-        for box in textline_extractor.boxes:
-            x0, y0, x1, y1 = resolve_box(box)
-            cv2.rectangle(page_image, (x0, y0), (x1, y1), (0, 255, 0), 3)
+            # Generate visualization:
+            visualization[prediction_mask == False] = (0, 0, 0) # Background: Black
+            visualization[prediction_mask == True] = (255, 0, 0) # Text lines: Blue
+            visualization[page_mask == False] = (255, 255, 255) # Foreground: White
 
-        # Convert cv2 to PIL (RGB):
-        page_image = cv2_to_pil_rgb(page_image, alpha)
+            for region_box in textlines_extractor.boxes:
+                draw_box(visualization, region_box, (0, 255, 0), 3) # Text region rectangles: Green
 
-        # Get file ID of image to be saved:
-        file_id = input_file.ID.replace(self.input_file_grp, self.image_grp)
+            # Convert cv2 to PIL (RGB):
+            visualization = cv2_to_pil_rgb(visualization, alpha)
 
-        if file_id == input_file.ID:
-            file_id = concat_padded(self.image_grp, n)
+            # Save visualization as AlternativeImage:
+            self._save_segment_image(
+                page,
+                visualization,
+                "_page_level",
+                "visualization"
+            )
 
-        # Save image:
-        self.workspace.save_image_file(
-            page_image,
-            file_id,
-            page_id=page_id,
-            file_grp=self.image_grp
-        )
-        ############
-
-    def _process_region(self, page, page_image, region, region_idx, region_image, region_xywh, page_id, n, input_file, textline_image):
+    def _process_region(self, page, page_image, region, region_image, region_xywh, region_suffix, textlines_prediction):
         # Construct characteristic extractor for text line prediction:
-        textline_extractor = Extracting(
-            textline_image,
+        textlines_extractor = Extracting(
+            textlines_prediction,
             fg_density_filter=(
-                self.parameter['min_textline_density'],
-                self.parameter['max_textline_density']
+                self.parameter['min_textlines_density'],
+                self.parameter['max_textlines_density']
             )
         )
 
         # TODO: Achieve this through API
         # Filter whole region by textline density:
-        density = textline_extractor.get_foreground_density()
-        if density < self.parameter['min_textline_density'] or self.parameter['max_textline_density'] < density:
+        density = textlines_extractor.get_foreground_density()
+        if density < self.parameter['min_textlines_density'] or self.parameter['max_textlines_density'] < density:
             return
 
         # Split region into line frames:
-        frames = textline_extractor.split_image_into_frames(axis=1)
+        frames = textlines_extractor.split_image_into_frames(axis=1)
 
         for idx, (frame, box) in enumerate(frames):
             x_offset, y_offset, _, _ = resolve_box(box)
@@ -187,8 +328,8 @@ class OcrdGbnSbbSegment(Processor):
                     self.parameter['max_particle_size'] * page.get_imageHeight() * page.get_imageWidth()
                 ),
                 fg_density_filter=(
-                    self.parameter['min_textline_density'],
-                    self.parameter['max_textline_density']
+                    self.parameter['min_textlines_density'],
+                    self.parameter['max_textlines_density']
                 )
             )
 
@@ -233,12 +374,12 @@ class OcrdGbnSbbSegment(Processor):
             # Convert back to absolute (page) coordinates:
             polygon = coordinates_for_segment(polygon, region_image, region_xywh)
 
-            region_id = page_id + "_region%04d" % region_idx + "_line%04d" % idx
+            line_id = self.page_id + region_suffix + "_line%04d" % idx
 
             # Save text line:
             region.add_TextLine(
                 TextLineType(
-                    id=region_id,
+                    id=line_id,
                     Coords=CoordsType(
                         points=points_from_polygon(polygon)
                     )
@@ -253,261 +394,101 @@ class OcrdGbnSbbSegment(Processor):
             ############
 
     def process(self):
-        if self.parameter['operation_level'] == "page":
-            if os.path.isfile(self.parameter['textregion_src']):
-                # Construct text region predictor:
-                textregion_predictor = Predicting(self.parameter['textregion_src'], self.parameter['textregion_algorithm'])
-
-                textregion_images = []
-                for (n, input_file) in enumerate(self.input_files):
-                    LOG.info("Predicting text regions of input file: %i / %s", n, input_file)
-
-                    # Create a new PAGE file from the input file:
-                    page_id = input_file.pageId or input_file.ID
-                    pcgts = page_from_file(self.workspace.download_file(input_file))
-                    page = pcgts.get_Page()
-
-                    # Get binarized and deskewed image from PAGE:
-                    page_image, page_xywh, _ = self.workspace.image_from_page(
-                        page,
-                        page_id,
-                        feature_selector="binarized,deskewed"
-                    )
-
-                    # Convert PIL to cv2 (RGB):
-                    page_image, _ = pil_to_cv2_rgb(page_image)
-
-                    # Get labels per-pixel and map them to grayscale:
-                    textregion_images.append(textregion_predictor.predict(page_image) * 255)
-
-                # Close session for text regions:
-                textregion_predictor.session.close()
-            else:
-                # Get prediction images from given file group:
-                textregion_input_files = self.workspace.mets.find_files(
-                    fileGrp=self.parameter['textregion_src']
-                )
-
-                textregion_images = []
-                for (n, input_file) in enumerate(textregion_input_files):
-                    LOG.info("Retrieving cached text region prediction of input file: %i / %s", n, input_file)
-
-                    # Create a new PAGE file from the input file:
-                    page_id = input_file.pageId or input_file.ID
-                    pcgts = page_from_file(self.workspace.download_file(input_file))
-                    page = pcgts.get_Page()
-
-                    # Get binarized and deskewed image from PAGE:
-                    page_image, page_xywh, _ = self.workspace.image_from_page(
-                        page,
-                        page_id
-                    )
-
-                    # Convert PIL to cv2 (gray):
-                    page_image, _ = pil_to_cv2_gray(page_image, bg_color=0)
-
-                    textregion_images.append(page_image)
-
-            if os.path.isfile(self.parameter['textline_src']):
-                # Construct text line predictor:
-                textline_predictor = Predicting(self.parameter['textline_src'], self.parameter['textline_algorithm'])
-
-                textline_images = []
-                for (n, input_file) in enumerate(self.input_files):
-                    LOG.info("Predicting text lines of input file: %i / %s", n, input_file)
-
-                    # Create a new PAGE file from the input file:
-                    page_id = input_file.pageId or input_file.ID
-                    pcgts = page_from_file(self.workspace.download_file(input_file))
-                    page = pcgts.get_Page()
-
-                    # Get binarized and deskewed image from PAGE:
-                    page_image, page_xywh, _ = self.workspace.image_from_page(
-                        page,
-                        page_id,
-                        feature_selector="binarized,deskewed"
-                    )
-
-                    # Convert PIL to cv2 (RGB):
-                    page_image, _ = pil_to_cv2_rgb(page_image)
-
-                    # Get labels per-pixel and map them to grayscale:
-                    textline_images.append(textline_predictor.predict(page_image) * 255)
-
-                # Close session for text lines:
-                textline_predictor.session.close()
-            else:
-                # Get prediction images from given file group:
-                textline_input_files = self.workspace.mets.find_files(
-                    fileGrp=self.parameter['textline_src']
-                )
-
-                textline_images = []
-                for (n, input_file) in enumerate(textline_input_files):
-                    LOG.info("Retrieving cached text line prediction of input file: %i / %s", n, input_file)
-
-                    # Create a new PAGE file from the input file:
-                    page_id = input_file.pageId or input_file.ID
-                    pcgts = page_from_file(self.workspace.download_file(input_file))
-                    page = pcgts.get_Page()
-
-                    # Get binarized and deskewed image from PAGE:
-                    page_image, page_xywh, _ = self.workspace.image_from_page(
-                        page,
-                        page_id
-                    )
-
-                    # Convert PIL to cv2 (gray):
-                    page_image, _ = pil_to_cv2_gray(page_image, bg_color=0)
-
-                    textline_images.append(page_image)
+        if self.parameter['textregions_model'] is None:
+            if self.parameter['operation_level'] == "page":
+                LOG.error("Operation level 'page' requires a path to the text regions prediction model")
+                quit()
         else:
-            if os.path.isfile(self.parameter['textline_src']):
-                # Construct text line predictor:
-                textline_predictor = Predicting(self.parameter['textline_src'], self.parameter['textline_algorithm'])
+            # Ensure path to model is absolute:
+            self.parameter['textregions_model'] = realpath(self.parameter['textregions_model'])
 
-                textline_images = []
-                for (n, input_file) in enumerate(self.input_files):
-                    LOG.info("Predicting text lines of input file: %i / %s", n, input_file)
+            # Construct predictor object:
+            textregions_predictor = Predicting(self.parameter['textregions_model'], self.parameter['textlines_shaping'])
 
-                    # Create a new PAGE file from the input file:
-                    page_id = input_file.pageId or input_file.ID
-                    pcgts = page_from_file(self.workspace.download_file(input_file))
-                    page = pcgts.get_Page()
+        # Ensure path to model is absolute:
+        self.parameter['textlines_model'] = realpath(self.parameter['textlines_model'])
 
-                    # Get original image from PAGE:
-                    page_image, page_xywh, _ = self.workspace.image_from_page(
-                        page,
-                        page_id,
-                        feature_filter="binarized,deskewed,cropped"
-                    )
+        # Construct predictor object:
+        textlines_predictor = Predicting(self.parameter['textlines_model'], self.parameter['textlines_shaping'])
 
-                    regions = page.get_TextRegion()
-
-                    textline_images.append([])
-                    for region_idx, region in enumerate(regions):
-                        # Get binarized and deskewed image from text region:
-                        region_image, region_xywh = self.workspace.image_from_segment(
-                            region,
-                            page_image,
-                            page_xywh,
-                            feature_selector="binarized,deskewed"
-                        )
-
-                        # Convert PIL to cv2 (RGB):
-                        region_image, _ = pil_to_cv2_rgb(region_image)
-
-                        # Get labels per-pixel and map them to grayscale:
-                        textline_images[n].append(textline_predictor.predict(region_image) * 255)
-
-                # Close session for text lines:
-                textline_predictor.session.close()
-            else:
-                # Get prediction images from given file group:
-                textline_input_files = self.workspace.mets.find_files(
-                    fileGrp=self.parameter['textline_src']
-                )
-
-                textline_images = []
-                for (n, input_file) in enumerate(textline_input_files):
-                    LOG.info("Retrieving cached text line prediction of input file: %i / %s", n, input_file)
-
-                    # Create a new PAGE file from the input file:
-                    page_id = input_file.pageId or input_file.ID
-                    pcgts = page_from_file(self.workspace.download_file(input_file))
-                    page = pcgts.get_Page()
-
-                    # Get original image from PAGE:
-                    page_image, page_xywh, _ = self.workspace.image_from_page(
-                        page,
-                        page_id,
-                        feature_filter="binarized,deskewed,cropped"
-                    )
-
-                    regions = page.get_TextRegion()
-
-                    textline_images.append([])
-                    for region_idx, region in enumerate(regions):
-                        # Get binarized and deskewed image from text region:
-                        region_image, region_xywh = self.workspace.image_from_segment(
-                            region,
-                            page_image,
-                            page_xywh,
-                            feature_selector="binarized,deskewed"
-                        )
-
-                        # Convert PIL to cv2 (grayscale):
-                        region_image, _ = pil_to_cv2_gray(region_image, bg_color=0)
-
-                        textline_images[n].append(region_image)
-
-        for (n, input_file) in enumerate(self.input_files):
-            LOG.info("Processing input file: %i / %s", n, input_file)
+        for (self.n, self.input_file) in enumerate(self.input_files):
+            LOG.info("Processing input file: %i / %s", self.n, self.input_file)
 
             # Create a new PAGE file from the input file:
-            page_id = input_file.pageId or input_file.ID
-            pcgts = page_from_file(self.workspace.download_file(input_file))
-            page = pcgts.get_Page()
+            self.page_id = self.input_file.pageId or self.input_file.ID
+            self.pcgts = page_from_file(self.workspace.download_file(self.input_file))
+            self.page = self.pcgts.get_Page()
+
+            # Get binarized and deskewed image from PAGE:
+            page_image, page_xywh, _ = self.workspace.image_from_page(
+                self.page,
+                self.page_id,
+                feature_selector="binarized,deskewed"
+            )
 
             if self.parameter['operation_level'] == "page":
-                # Get binarized and deskewed image from PAGE:
-                page_image, page_xywh, _ = self.workspace.image_from_page(
-                    page,
-                    page_id,
-                    feature_selector="binarized,deskewed"
+                # Get TextRegion prediction image:
+                textregions_prediction, _ = self._get_page_prediction(
+                    textregions_predictor,
+                    page_selector="binarized,deskewed"
                 )
 
+                # Get TextLine prediction image:
+                textlines_prediction, _ = self._get_page_prediction(
+                    textlines_predictor,
+                    page_selector="binarized,deskewed"
+                )
+
+                # Segment page:
                 self._process_page(
-                    page,
+                    self.page,
                     page_image,
                     page_xywh,
-                    page_id,
-                    n,
-                    input_file,
-                    textregion_images[n],
-                    textline_images[n]
+                    textregions_prediction,
+                    textlines_prediction
                 )
             elif self.parameter['operation_level'] == "region":
-                # Get binarized and deskewed image from PAGE:
-                page_image, page_xywh, _ = self.workspace.image_from_page(
-                    page,
-                    page_id,
-                    feature_selector="binarized,deskewed"
-                )
-
                 # DEBUG ONLY
                 # Get original image from PAGE:
                 page_image_cv2, _, _ = self.workspace.image_from_page(
-                    page,
-                    page_id,
+                    self.page,
+                    self.page_id,
                     feature_filter="binarized,deskewed"
                 )
                 # Convert PIL to cv2 (RGB):
                 page_image_cv2, alpha = pil_to_cv2_rgb(page_image_cv2)
                 ############
 
-                regions = page.get_TextRegion()
+                regions = self.page.get_TextRegion()
 
                 for region_idx, region in enumerate(regions):
-                    # Get binarized and deskewed image from text region:
-                    region_image, region_xywh = self.workspace.image_from_segment(
+                    region_suffix = "_region%04d" % region_idx
+
+                    # Get TextLine prediction image:
+                    textlines_prediction, _ = self._get_segment_prediction(
+                        region,
+                        region_suffix,
+                        textlines_predictor,
+                        segment_selector="binarized,deskewed"
+                    )
+
+                    # Get binarized and deskewed image from TextRegion:
+                    region_image, region_xywh, _ = self.workspace.image_from_segment(
                         region,
                         page_image,
                         page_xywh,
                         feature_selector="binarized,deskewed"
                     )
 
+                    # Segment text regions:
                     self._process_region(
-                        page,
+                        self.page,
                         page_image_cv2,
                         region,
-                        region_idx,
                         region_image,
                         region_xywh,
-                        page_id,
-                        n,
-                        input_file,
-                        textline_images[n][region_idx]
+                        region_suffix,
+                        textlines_prediction
                     )
 
                 # DEBUG ONLY
@@ -515,10 +496,10 @@ class OcrdGbnSbbSegment(Processor):
                 page_image = cv2_to_pil_rgb(page_image_cv2, alpha)
 
                 # Get file ID of image to be saved:
-                file_id = input_file.ID.replace(self.input_file_grp, self.image_grp)
+                file_id = self.input_file.ID.replace(self.input_file_grp, self.image_grp)
 
-                if file_id == input_file.ID:
-                    file_id = concat_padded(self.image_grp, n)
+                if file_id == self.input_file.ID:
+                    file_id = concat_padded(self.image_grp, self.n)
 
                 file_id += "_regions"
 
@@ -526,13 +507,13 @@ class OcrdGbnSbbSegment(Processor):
                 self.workspace.save_image_file(
                     page_image,
                     file_id,
-                    page_id=page_id,
+                    page_id=self.page_id,
                     file_grp=self.image_grp
                 )
                 ############
 
             # Add metadata about this operation:
-            metadata = pcgts.get_Metadata()
+            metadata = self.pcgts.get_Metadata()
             metadata.add_MetadataItem(
                 MetadataItemType(
                     type_="processingStep",
@@ -554,17 +535,17 @@ class OcrdGbnSbbSegment(Processor):
             )
 
             # Get file ID of XML PAGE to be saved:
-            file_id = input_file.ID.replace(self.input_file_grp, self.page_grp)
+            file_id = self.input_file.ID.replace(self.input_file_grp, self.page_grp)
 
-            if file_id == input_file.ID:
-                file_id = concat_padded(self.page_grp, n)
+            if file_id == self.input_file.ID:
+                file_id = concat_padded(self.page_grp, self.n)
 
             # Save XML PAGE:
             self.workspace.add_file(
                  ID=file_id,
                  file_grp=self.page_grp,
-                 pageId=page_id,
+                 pageId=self.page_id,
                  mimetype=MIMETYPE_PAGE,
-                 local_filename=os.path.join(self.output_file_grp, file_id)+".xml",
-                 content=to_xml(pcgts)
+                 local_filename=join(self.output_file_grp, file_id)+".xml",
+                 content=to_xml(self.pcgts)
             )
