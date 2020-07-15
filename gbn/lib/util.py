@@ -25,6 +25,17 @@ def box_to_polygon(box, offset=(0, 0)):
 
     return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
 
+def draw_box(image, box, color, thickness):
+    '''
+    Draws box rectangle on image
+    '''
+
+    x0, y0, x1, y1 = resolve_box(box)
+
+    cv2.rectangle(image, (x0, y0), (x1, y1), color, thickness)
+
+    return image
+
 def slice_image(image, box):
     '''
     Slices the given image in the x,y coordinates described in the given box
@@ -116,5 +127,23 @@ def cv2_to_pil_gray(image, alpha=None):
     # Restore alpha channel, if there is one:
     if alpha:
         image.putalpha(alpha)
+
+    return image
+
+def gray_to_bgr(image):
+    '''
+    Converts a grayscale cv2 image to BGR
+    '''
+    return cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+
+def binary_to_mask(image):
+    '''
+    Converts a binary (grayscale) cv2 image to a Numpy mask
+    '''
+    # Map pixels from [0, 255] (grayscale) to [0, 1] (binary):
+    image = image / 255.0
+
+    # Convert image array to boolean (mask):
+    image = image.astype(np.bool_)
 
     return image
