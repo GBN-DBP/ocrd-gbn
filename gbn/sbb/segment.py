@@ -408,7 +408,7 @@ class OcrdGbnSbbSegment(Processor):
         return visualization
 
     def process(self):
-        if self.parameter['textregions_model'] is None:
+        if self.parameter['textregions_model'] is "":
             if self.parameter['operation_level'] == "page":
                 LOG.error("Operation level 'page' requires a path to the text regions prediction model")
                 quit()

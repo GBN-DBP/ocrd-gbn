@@ -186,7 +186,7 @@
         "textregions_model": {
           "type": "string",
           "description": "Path to Keras model to be used for predicting text regions",
-          "default": null,
+          "default": "",
           "cacheable": true
         },
         "textregions_shaping": {
