@@ -36,6 +36,15 @@ def draw_box(image, box, color, thickness):
 
     return image
 
+def draw_polygon(image, polygon, color, thickness):
+    '''
+    Draws polygon on image
+    '''
+
+    cv2.rectangle(image, polygon, True, color, thickness)
+
+    return image
+
 def slice_image(image, box):
     '''
     Slices the given image in the x,y coordinates described in the given box
