@@ -215,8 +215,8 @@ class OcrdGbnSbbSegment(Processor):
         textlines_extractor = Extracting(
             textlines_prediction,
             fg_density_filter=(
-                self.parameter['min_textlines_density'],
-                self.parameter['max_textlines_density']
+                self.parameter['min_textline_density'],
+                self.parameter['max_textline_density']
             )
         )
 
@@ -312,15 +312,15 @@ class OcrdGbnSbbSegment(Processor):
         textlines_extractor = Extracting(
             textlines_prediction,
             fg_density_filter=(
-                self.parameter['min_textlines_density'],
-                self.parameter['max_textlines_density']
+                self.parameter['min_textline_density'],
+                self.parameter['max_textline_density']
             )
         )
 
         # TODO: Achieve this through API
         # Filter whole region by textline density:
         density = textlines_extractor.get_foreground_density()
-        if density < self.parameter['min_textlines_density'] or self.parameter['max_textlines_density'] < density:
+        if density < self.parameter['min_textline_density'] or self.parameter['max_textline_density'] < density:
             return
 
         # Split region into line frames:
@@ -337,8 +337,8 @@ class OcrdGbnSbbSegment(Processor):
                     self.parameter['max_particle_size'] * page.get_imageHeight() * page.get_imageWidth()
                 ),
                 fg_density_filter=(
-                    self.parameter['min_textlines_density'],
-                    self.parameter['max_textlines_density']
+                    self.parameter['min_textline_density'],
+                    self.parameter['max_textline_density']
                 )
             )
 
