@@ -135,7 +135,7 @@ class OcrdGbnSbbSegment(Processor):
                 )
 
                 # Try to cache prediction image from segment:
-                segment_prediction, segment_xywh, _ = self.workspace.image_from_segment(
+                segment_prediction, segment_xywh = self.workspace.image_from_segment(
                     segment,
                     page_prediction,
                     page_xywh,
@@ -484,7 +484,7 @@ class OcrdGbnSbbSegment(Processor):
                     )
 
                     # Get binarized and deskewed image from TextRegion:
-                    region_image, region_xywh, _ = self.workspace.image_from_segment(
+                    region_image, region_xywh = self.workspace.image_from_segment(
                         region,
                         page_image,
                         page_xywh,

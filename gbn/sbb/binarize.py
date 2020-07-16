@@ -134,7 +134,7 @@ class OcrdGbnSbbBinarize(Processor):
                 )
 
                 # Try to cache prediction image from segment:
-                segment_prediction, segment_xywh, _ = self.workspace.image_from_segment(
+                segment_prediction, segment_xywh = self.workspace.image_from_segment(
                     segment,
                     page_prediction,
                     page_xywh,
