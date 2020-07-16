@@ -304,7 +304,7 @@ class OcrdGbnSbbSegment(Processor):
                 "visualization"
             )
 
-    def _process_region(self, page, page_image, region, region_image, region_xywh, region_suffix, textlines_prediction):
+    def _process_region(self, page, visualization, region, region_image, region_xywh, region_suffix, textlines_prediction):
         # Convert PIL to cv2 (grayscale):
         textlines_prediction, _ = pil_to_cv2_gray(textlines_prediction, bg_color=0)
 
@@ -321,7 +321,7 @@ class OcrdGbnSbbSegment(Processor):
         # Filter whole region by textline density:
         density = textlines_extractor.get_foreground_density()
         if density < self.parameter['min_textline_density'] or self.parameter['max_textline_density'] < density:
-            return
+            return visualization
 
         # Split region into line frames:
         frames = textlines_extractor.split_image_into_frames(axis=1)
@@ -397,9 +397,9 @@ class OcrdGbnSbbSegment(Processor):
 
             if self.parameter['visualization']:
                 # Convert PIL to cv2:
-                visualization, alpha = pil_to_cv2_rgb(page_image)
+                visualization, alpha = pil_to_cv2_rgb(visualization)
 
-                # Generate visualization
+                # Generate visualization:
                 draw_polygon(visualization, polygon, (0, 127, 0), 2) # Green
 
                 # Convert cv2 to PIL (RGB):
