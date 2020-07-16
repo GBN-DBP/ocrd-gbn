@@ -1,4 +1,4 @@
-from gbn.lib.util import resolve_box, draw_box, pil_to_cv2_rgb, cv2_to_pil_rgb, pil_to_cv2_gray, cv2_to_pil_gray, gray_to_bgr, binary_to_mask
+from gbn.lib.util import resolve_box, draw_box, draw_polygon, pil_to_cv2_rgb, cv2_to_pil_rgb, pil_to_cv2_gray, cv2_to_pil_gray, gray_to_bgr, binary_to_mask
 from gbn.lib.predict import Predicting
 from gbn.lib.extract import Extracting
 from gbn.tool import OCRD_TOOL
@@ -180,6 +180,9 @@ class OcrdGbnSbbSegment(Processor):
         return segment_prediction, segment_xywh
 
     def _process_page(self, page, page_image, page_xywh, textregions_prediction, textlines_prediction):
+        # Convert PIL to cv2 (grayscale):
+        textregions_prediction, _ = pil_to_cv2_gray(textregions_prediction, bg_color=0)
+
         # Construct characteristic extractor for text region prediction:
         textregions_extractor = Extracting(
             textregions_prediction,
@@ -204,6 +207,9 @@ class OcrdGbnSbbSegment(Processor):
 
         # Filter contours by area:
         textregions_extractor.filter_by_area()
+
+        # Convert PIL to cv2 (grayscale):
+        textlines_prediction, _ = pil_to_cv2_gray(textlines_prediction, bg_color=0)
 
         # Construct characteristic extractor for text line prediction:
         textlines_extractor = Extracting(
@@ -299,6 +305,9 @@ class OcrdGbnSbbSegment(Processor):
             )
 
     def _process_region(self, page, page_image, region, region_image, region_xywh, region_suffix, textlines_prediction):
+        # Convert PIL to cv2 (grayscale):
+        textlines_prediction, _ = pil_to_cv2_gray(textlines_prediction, bg_color=0)
+
         # Construct characteristic extractor for text line prediction:
         textlines_extractor = Extracting(
             textlines_prediction,
@@ -386,12 +395,17 @@ class OcrdGbnSbbSegment(Processor):
                 )
             )
 
-            # DEBUG ONLY
-            cv2.line(page_image, tuple(polygon[0]), tuple(polygon[1]), (0, 127, 0), 2)
-            cv2.line(page_image, tuple(polygon[1]), tuple(polygon[2]), (0, 127, 0), 2)
-            cv2.line(page_image, tuple(polygon[2]), tuple(polygon[3]), (0, 127, 0), 2)
-            cv2.line(page_image, tuple(polygon[3]), tuple(polygon[0]), (0, 127, 0), 2)
-            ############
+            if self.parameter['visualization']:
+                # Convert PIL to cv2:
+                visualization, alpha = pil_to_cv2_rgb(page_image)
+
+                # Generate visualization
+                draw_polygon(visualization, polygon, (0, 127, 0), 2) # Green
+
+                # Convert cv2 to PIL (RGB):
+                visualization = cv2_to_pil_rgb(visualization, alpha)
+
+        return visualization
 
     def process(self):
         if self.parameter['textregions_model'] is None:
@@ -448,16 +462,13 @@ class OcrdGbnSbbSegment(Processor):
                     textlines_prediction
                 )
             elif self.parameter['operation_level'] == "region":
-                # DEBUG ONLY
+                # TODO: Place visualization stuff inside a _process method
                 # Get original image from PAGE:
-                page_image_cv2, _, _ = self.workspace.image_from_page(
+                visualization, _, _ = self.workspace.image_from_page(
                     self.page,
                     self.page_id,
                     feature_filter="binarized,deskewed"
                 )
-                # Convert PIL to cv2 (RGB):
-                page_image_cv2, alpha = pil_to_cv2_rgb(page_image_cv2)
-                ############
 
                 regions = self.page.get_TextRegion()
 
@@ -481,9 +492,9 @@ class OcrdGbnSbbSegment(Processor):
                     )
 
                     # Segment text regions:
-                    self._process_region(
+                    visualization = self._process_region(
                         self.page,
-                        page_image_cv2,
+                        visualization,
                         region,
                         region_image,
                         region_xywh,
@@ -491,26 +502,14 @@ class OcrdGbnSbbSegment(Processor):
                         textlines_prediction
                     )
 
-                # DEBUG ONLY
-                # Convert cv2 to PIL (RGB):
-                page_image = cv2_to_pil_rgb(page_image_cv2, alpha)
-
-                # Get file ID of image to be saved:
-                file_id = self.input_file.ID.replace(self.input_file_grp, self.image_grp)
-
-                if file_id == self.input_file.ID:
-                    file_id = concat_padded(self.image_grp, self.n)
-
-                file_id += "_regions"
-
-                # Save image:
-                self.workspace.save_image_file(
-                    page_image,
-                    file_id,
-                    page_id=self.page_id,
-                    file_grp=self.image_grp
-                )
-                ############
+                if self.parameter['visualization']:
+                    # Save visualization as AlternativeImage:
+                    self._save_segment_image(
+                        self.page,
+                        visualization,
+                        "_region_level",
+                        "visualization"
+                    )
 
             # Add metadata about this operation:
             metadata = self.pcgts.get_Metadata()
