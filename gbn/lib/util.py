@@ -41,7 +41,7 @@ def draw_polygon(image, polygon, color, thickness):
     Draws polygon on image
     '''
 
-    cv2.rectangle(image, polygon, True, color, thickness)
+    cv2.polylines(image, polygon, True, color, thickness)
 
     return image
 
