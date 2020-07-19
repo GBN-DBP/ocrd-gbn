@@ -218,11 +218,6 @@
           "description": "Enables caching of prediction images from the workspace",
           "default": true
         },
-        "visualization": {
-          "type": "boolean",
-          "description": "Enables visualization of segmentation results by saving page images to the image file group. Page-level segmentation visualization consists of the text lines prediction (blue), the binary image foreground (white) and the segmented rectangular text regions (green). Region-level segmentation visualization consists of the original page images with outlines drawn on the segmented text lines (green)",
-          "default": false
-        },
         "operation_level": {
           "type": "string",
           "description": "PAGE XML hierarchy level to operate on",

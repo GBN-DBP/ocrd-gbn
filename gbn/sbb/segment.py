@@ -274,37 +274,7 @@ class OcrdGbnSbbSegment(Processor):
                 )
             )
 
-        if self.parameter['visualization']:
-            # Convert PIL to cv2 (grayscale):
-            page_image, alpha = pil_to_cv2_gray(page_image)
-
-            # Get masks of both binary image (foreground prediction) and text lines prediction:
-            prediction_mask = binary_to_mask(textlines_prediction)
-            page_mask = binary_to_mask(page_image)
-
-            # Convert to BGR:
-            visualization = gray_to_bgr(page_image)
-
-            # Generate visualization:
-            visualization[prediction_mask == False] = (0, 0, 0) # Background: Black
-            visualization[prediction_mask == True] = (255, 0, 0) # Text lines: Blue
-            visualization[page_mask == False] = (255, 255, 255) # Foreground: White
-
-            for region_box in textlines_extractor.boxes:
-                draw_box(visualization, region_box, (0, 255, 0), 3) # Text region rectangles: Green
-
-            # Convert cv2 to PIL (RGB):
-            visualization = cv2_to_pil_rgb(visualization, alpha)
-
-            # Save visualization as AlternativeImage:
-            self._save_segment_image(
-                page,
-                visualization,
-                "_page_level",
-                "visualization"
-            )
-
-    def _process_region(self, page, visualization, region, region_image, region_xywh, region_suffix, textlines_prediction):
+    def _process_region(self, page, region, region_image, region_xywh, region_suffix, textlines_prediction):
         # Convert PIL to cv2 (grayscale):
         textlines_prediction, _ = pil_to_cv2_gray(textlines_prediction, bg_color=0)
 
@@ -321,7 +291,7 @@ class OcrdGbnSbbSegment(Processor):
         # Filter whole region by textline density:
         density = textlines_extractor.get_foreground_density()
         if density < self.parameter['min_textline_density'] or self.parameter['max_textline_density'] < density:
-            return visualization
+            return
 
         # Split region into line frames:
         frames = textlines_extractor.split_image_into_frames(axis=1)
@@ -395,18 +365,6 @@ class OcrdGbnSbbSegment(Processor):
                 )
             )
 
-            if self.parameter['visualization']:
-                # Convert PIL to cv2:
-                visualization, alpha = pil_to_cv2_rgb(visualization)
-
-                # Generate visualization:
-                draw_polygon(visualization, polygon, (0, 127, 0), 2) # Green
-
-                # Convert cv2 to PIL (RGB):
-                visualization = cv2_to_pil_rgb(visualization, alpha)
-
-        return visualization
-
     def process(self):
         if self.parameter['textregions_model'] is "":
             if self.parameter['operation_level'] == "page":
@@ -462,14 +420,6 @@ class OcrdGbnSbbSegment(Processor):
                     textlines_prediction
                 )
             elif self.parameter['operation_level'] == "region":
-                # TODO: Place visualization stuff inside a _process method
-                # Get original image from PAGE:
-                visualization, _, _ = self.workspace.image_from_page(
-                    self.page,
-                    self.page_id,
-                    feature_filter="binarized,deskewed"
-                )
-
                 regions = self.page.get_TextRegion()
 
                 for region_idx, region in enumerate(regions):
@@ -492,23 +442,13 @@ class OcrdGbnSbbSegment(Processor):
                     )
 
                     # Segment text regions:
-                    visualization = self._process_region(
+                    self._process_region(
                         self.page,
-                        visualization,
                         region,
                         region_image,
                         region_xywh,
                         region_suffix,
                         textlines_prediction
-                    )
-
-                if self.parameter['visualization']:
-                    # Save visualization as AlternativeImage:
-                    self._save_segment_image(
-                        self.page,
-                        visualization,
-                        "_region_level",
-                        "visualization"
                     )
 
             # Add metadata about this operation:
