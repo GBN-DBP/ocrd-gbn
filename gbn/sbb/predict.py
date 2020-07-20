@@ -36,6 +36,9 @@ class OcrdGbnSbbPredict(Processor):
         # Find contours of prediction:
         extractor.analyse_contours()
 
+        # Filter invalid polygons:
+        extractor.filter_by_geometry()
+
         for idx, contour in enumerate(extractor.contours):
             # Convert to absolute (page) coordinates:
             polygon = coordinates_for_segment(contour_to_polygon(contour), segment_image, segment_xywh)
