@@ -34,9 +34,19 @@
             "split"
           ]
         },
+        "type": {
+          "type": "string",
+          "description": "PAGE-XML content type to be predicted",
+          "required": true,
+          "enum": [
+            "BorderType",
+            "TextRegionType",
+            "TextLineType"
+          ]
+        },
         "operation_level": {
           "type": "string",
-          "description": "PAGE XML hierarchy level to operate on",
+          "description": "PAGE-XML hierarchy level to operate on",
           "default": "page",
           "enum": [
             "page",
@@ -86,7 +96,7 @@
         },
         "operation_level": {
           "type": "string",
-          "description": "PAGE XML hierarchy level to operate on",
+          "description": "PAGE-XML hierarchy level to operate on",
           "default": "page",
           "enum": [
             "page",
@@ -136,7 +146,7 @@
         },
         "operation_level": {
           "type": "string",
-          "description": "PAGE XML hierarchy level to operate on",
+          "description": "PAGE-XML hierarchy level to operate on",
           "default": "page",
           "enum": [
             "page",
@@ -220,7 +230,7 @@
         },
         "operation_level": {
           "type": "string",
-          "description": "PAGE XML hierarchy level to operate on",
+          "description": "PAGE-XML hierarchy level to operate on",
           "default": "page",
           "enum": [
             "page",

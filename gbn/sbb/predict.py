@@ -1,19 +1,18 @@
 from gbn.lib.util import pil_to_cv2_rgb, cv2_to_pil_gray
 from gbn.lib.predict import Predicting
+from gbn.lib.extract import Extracting
 from gbn.tool import OCRD_TOOL
 
 from ocrd import Processor
 from ocrd_modelfactory import page_from_file
 from ocrd_models.ocrd_page import to_xml
-from ocrd_models.ocrd_page_generateds import AlternativeImageType, LabelsType, LabelType, MetadataItemType
-from ocrd_utils import concat_padded, getLogger, MIMETYPE_PAGE
+from ocrd_models.ocrd_page_generateds import AlternativeImageType, CoordsType, LabelsType, LabelType, MetadataItemType, TextLineType, TextRegionType
+from ocrd_utils import concat_padded, coordinates_for_segment, getLogger, MIMETYPE_PAGE, points_from_polygon
 
 from os.path import realpath, join
 
 TOOL = "ocrd-gbn-sbb-predict"
 LOG = getLogger("processor.OcrdGbnSbbPredict")
-
-FILEGRP_PRED = "OCR-D-IMG-PRED"
 
 class OcrdGbnSbbPredict(Processor):
     def __init__(self, *args, **kwargs):
@@ -22,65 +21,49 @@ class OcrdGbnSbbPredict(Processor):
         super(OcrdGbnSbbPredict, self).__init__(*args, **kwargs)
 
         if hasattr(self, "output_file_grp"):
-            try:
-                self.page_grp, self.image_grp = self.output_file_grp.split(',')
-                self.output_file_grp = self.page_grp
-                FILEGRP_PRED = self.image_grp
-            except ValueError:
-                self.page_grp = self.output_file_grp
-                self.image_grp = FILEGRP_PRED
-                LOG.info("No output file group for predictions specified, falling back to '%s'", FILEGRP_PRED)
+            self.page_grp = self.output_file_grp
 
-    def _save_segment_image(self, segment, segment_image, segment_suffix, comments, file_grp=None):
-        # If no file group specified, use default group for images:
-        if file_grp is None:
-            file_grp = self.image_grp
-
-        # Get file ID of image to be saved:
-        file_id = self.input_file.ID.replace(self.input_file_grp, file_grp)
-
-        if file_id == self.input_file.ID:
-            file_id = concat_padded(file_grp, self.n)
-
-        # Concatenate suffix to ID:
-        file_id += segment_suffix
-
-        # Save image:
-        file_path = self.workspace.save_image_file(
-            segment_image,
-            file_id,
-            page_id=self.page_id,
-            file_grp=file_grp
-        )
-
-        # Add metadata about saved image:
-        segment.add_AlternativeImage(
-            AlternativeImageType(
-                filename=file_path,
-                comments=comments
-            )
-        )
-
-    def _predict_segment(self, segment, segment_image, segment_suffix, predictor):
+    def _predict_segment(self, segment, segment_image, segment_xywh, segment_suffix, predictor):
         # Convert PIL to cv2 (RGB):
-        segment_image, alpha = pil_to_cv2_rgb(segment_image)
+        segment_image, _ = pil_to_cv2_rgb(segment_image)
 
         # Get labels per-pixel and map them to grayscale:
         segment_prediction = predictor.predict(segment_image) * 255
 
-        # Convert cv2 to PIL (grayscale):
-        segment_prediction = cv2_to_pil_gray(segment_prediction, alpha)
+        # Construct characteristic extractor for segment prediction:
+        extractor = Extracting(segment_prediction)
 
-        # Save prediction image as AlternativeImage of segment, setting the 'comments' field to the model path:
-        self._save_segment_image(
-            segment,
-            segment_prediction,
-            segment_suffix + predictor.model_path.translate(str.maketrans({'/': '_', '.': '_'})),
-            predictor.model_path,
-            file_grp=FILEGRP_PRED
-        )
+        # Find contours of prediction:
+        extractor.analyse_contours()
 
-        return segment_prediction
+        for idx, contour in enumerate(extractor.contours):
+            # Convert to absolute (page) coordinates:
+            polygon = coordinates_for_segment(contour, segment_image, segment_xywh)
+
+            if self.parameter['type'] == "TextRegionType":
+                region_suffix = "_region%04d" % idx
+
+                # Save text region:
+                segment.add_TextRegion(
+                    TextRegionType(
+                        id=self.page_id+segment_suffix+region_suffix,
+                        Coords=CoordsType(
+                            points=points_from_polygon(polygon)
+                        )
+                    )
+                )
+            elif self.parameter['type'] == "TextLineType":
+                line_suffix = "_line%04d" % idx
+
+                # Save text line:
+                segment.add_TextLine(
+                    TextLineType(
+                        id=self.page_id+segment_suffix+line_suffix,
+                        Coords=CoordsType(
+                            points=points_from_polygon(polygon)
+                        )
+                    )
+                )
 
     def process(self):
         # Ensure path to model is absolute:
@@ -99,7 +82,7 @@ class OcrdGbnSbbPredict(Processor):
 
             if self.parameter['operation_level'] == "page":
                 # Get image from PAGE:
-                page_image, _, _ = self.workspace.image_from_page(
+                page_image, page_xywh, _ = self.workspace.image_from_page(
                     self.page,
                     self.page_id
                 )
@@ -108,6 +91,7 @@ class OcrdGbnSbbPredict(Processor):
                 self._predict_segment(
                     self.page,
                     page_image,
+                    page_xywh,
                     "",
                     predictor
                 )
@@ -124,7 +108,7 @@ class OcrdGbnSbbPredict(Processor):
                     region_suffix = "_region%04d" % region_idx
 
                     # Get image from TextRegion:
-                    region_image, _ = self.workspace.image_from_segment(
+                    region_image, region_xywh = self.workspace.image_from_segment(
                         region,
                         page_image,
                         page_xywh
@@ -134,6 +118,7 @@ class OcrdGbnSbbPredict(Processor):
                     self._predict_segment(
                         region,
                         region_image,
+                        region_xywh,
                         region_suffix,
                         predictor
                     )
@@ -155,7 +140,7 @@ class OcrdGbnSbbPredict(Processor):
                         line_suffix = region_suffix + ("_line%04d" % line_idx)
 
                         # Get image from TextLine:
-                        line_image, _ = self.workspace.image_from_segment(
+                        line_image, line_xywh = self.workspace.image_from_segment(
                             line,
                             page_image,
                             page_xywh
@@ -165,6 +150,7 @@ class OcrdGbnSbbPredict(Processor):
                         self._predict_segment(
                             line,
                             line_image,
+                            line_xywh,
                             line_suffix,
                             predictor
                         )
