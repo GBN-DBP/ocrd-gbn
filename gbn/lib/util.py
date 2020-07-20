@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import PIL.Image
 import scipy.ndimage
+import shapely.geometry
 
 def resolve_box(box):
     '''
@@ -24,6 +25,15 @@ def box_to_polygon(box, offset=(0, 0)):
     y1 += offset[1]
 
     return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+
+def contour_to_polygon(contour):
+    '''
+    Converts cv2 contour to polygon (as in OCR-D core)
+    '''
+
+    # TODO: find a simpler way
+    polygon = shapely.geometry.Polygon([point[0] for point in contour])
+    return np.array([point for point in polygon.exterior.coords], dtype=np.uint))
 
 def draw_box(image, box, color, thickness):
     '''

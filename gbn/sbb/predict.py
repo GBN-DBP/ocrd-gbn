@@ -1,4 +1,4 @@
-from gbn.lib.util import pil_to_cv2_rgb, cv2_to_pil_gray
+from gbn.lib.util import contour_to_polygon, pil_to_cv2_rgb, cv2_to_pil_gray
 from gbn.lib.predict import Predicting
 from gbn.lib.extract import Extracting
 from gbn.tool import OCRD_TOOL
@@ -38,7 +38,7 @@ class OcrdGbnSbbPredict(Processor):
 
         for idx, contour in enumerate(extractor.contours):
             # Convert to absolute (page) coordinates:
-            polygon = coordinates_for_segment(contour, segment_image, segment_xywh)
+            polygon = coordinates_for_segment(contour_to_polygon(contour), segment_image, segment_xywh)
 
             if self.parameter['type'] == "TextRegionType":
                 region_suffix = "_region%04d" % idx
