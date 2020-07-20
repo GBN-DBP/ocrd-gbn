@@ -33,7 +33,7 @@ def contour_to_polygon(contour):
 
     # TODO: find a simpler way
     polygon = shapely.geometry.Polygon([point[0] for point in contour])
-    return np.array([point for point in polygon.exterior.coords], dtype=np.uint))
+    return np.array([point for point in polygon.exterior.coords], dtype=np.uint)
 
 def draw_box(image, box, color, thickness):
     '''
