@@ -36,7 +36,10 @@ class OcrdGbnSbbPredict(Processor):
         # Find contours of prediction:
         extractor.analyse_contours()
 
-        # Filter invalid polygons:
+        # Filter out redundant contours:
+        extractor.filter_by_hierarchy()
+
+        # Filter out invalid polygons:
         extractor.filter_by_geometry()
 
         for idx, contour in enumerate(extractor.contours):
