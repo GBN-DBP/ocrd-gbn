@@ -56,8 +56,8 @@ class Predicting():
         # Reshape prediction to image-like representation:
         prediction = prediction.reshape(self.output_shape[1:])
 
-        # Convert prediction from displaying likeliness of all labels to displaying the most likely label:
-        prediction = np.argmax(prediction, axis=2).astype(np.uint8)
+        # Convert prediction from displaying likeliness of all labels to displaying the most likely label in interval [0,1] (binary only):
+        prediction = np.argmax(prediction[:, :, :2], axis=2).astype(np.uint8)
 
         return prediction
 
