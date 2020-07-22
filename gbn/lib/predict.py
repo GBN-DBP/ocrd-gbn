@@ -69,7 +69,7 @@ class Predicting():
             bg = np.add(bg, other)
 
             # Reshape prediction as binary:
-            prediction = np.concatenate((bg, fg), axis=2)
+            prediction = np.stack((bg, fg), axis=2)
 
         # Get labels by converting from likeliness of each class to label of most likely class:
         prediction = np.argmax(prediction, axis=2).astype(np.uint8)
