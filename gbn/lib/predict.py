@@ -56,8 +56,23 @@ class Predicting():
         # Reshape prediction to image-like representation:
         prediction = prediction.reshape(self.output_shape[1:])
 
-        # Convert prediction from displaying likeliness of all labels to displaying the most likely label in interval [0,1] (binary only):
-        prediction = np.argmax(prediction[:, :, :2], axis=2).astype(np.uint8)
+        # If classification is not binary:
+        if prediction.shape[2] > 2:
+            # Get classes 0 (background) and 1 (interest/foreground):
+            bg = prediction[:, :, 0]
+            fg = prediction[:, :, 1]
+
+            # Group all other classes:
+            other = np.sum(prediction[:, :, 2:], axis=2)
+
+            # Since all other classes are ignored, consider them background:
+            bg = np.add(bg, other)
+
+            # Reshape prediction as binary:
+            prediction = np.concatenate((bg, fg), axis=2)
+
+        # Get labels by converting from likeliness of each class to label of most likely class:
+        prediction = np.argmax(prediction, axis=2).astype(np.uint8)
 
         return prediction
 
