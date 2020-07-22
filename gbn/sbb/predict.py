@@ -6,7 +6,7 @@ from gbn.tool import OCRD_TOOL
 from ocrd import Processor
 from ocrd_modelfactory import page_from_file
 from ocrd_models.ocrd_page import to_xml
-from ocrd_models.ocrd_page_generateds import AlternativeImageType, CoordsType, LabelsType, LabelType, MetadataItemType, TextLineType, TextRegionType
+from ocrd_models.ocrd_page_generateds import AlternativeImageType, BorderType, CoordsType, LabelsType, LabelType, MetadataItemType, TextLineType, TextRegionType
 from ocrd_utils import concat_padded, coordinates_for_segment, getLogger, MIMETYPE_PAGE, points_from_polygon
 
 from os.path import realpath, join
@@ -42,34 +42,50 @@ class OcrdGbnSbbPredict(Processor):
         # Filter out invalid polygons:
         extractor.filter_by_geometry()
 
-        for idx, contour in enumerate(extractor.contours):
+        if self.parameter['type'] == "BorderType":
+            # Get largest contour:
+            contour = extractor.contours[extractor.contour_areas.index(max(extractor.contour_areas))]
+
             # Convert to absolute (page) coordinates:
             polygon = coordinates_for_segment(contour_to_polygon(contour), segment_image, segment_xywh)
 
-            if self.parameter['type'] == "TextRegionType":
-                region_suffix = "_region%04d" % idx
-
-                # Save text region:
-                segment.add_TextRegion(
-                    TextRegionType(
-                        id=self.page_id+segment_suffix+region_suffix,
-                        Coords=CoordsType(
-                            points=points_from_polygon(polygon)
-                        )
+            # Save border:
+            segment.set_Border(
+                BorderType(
+                    Coords=CoordsType(
+                        points=points_from_polygon(polygon)
                     )
                 )
-            elif self.parameter['type'] == "TextLineType":
-                line_suffix = "_line%04d" % idx
+            )
+        else:
+            for idx, contour in enumerate(extractor.contours):
+                # Convert to absolute (page) coordinates:
+                polygon = coordinates_for_segment(contour_to_polygon(contour), segment_image, segment_xywh)
 
-                # Save text line:
-                segment.add_TextLine(
-                    TextLineType(
-                        id=self.page_id+segment_suffix+line_suffix,
-                        Coords=CoordsType(
-                            points=points_from_polygon(polygon)
+                if self.parameter['type'] == "TextRegionType":
+                    region_suffix = "_region%04d" % idx
+
+                    # Save text region:
+                    segment.add_TextRegion(
+                        TextRegionType(
+                            id=self.page_id+segment_suffix+region_suffix,
+                            Coords=CoordsType(
+                                points=points_from_polygon(polygon)
+                            )
                         )
                     )
-                )
+                elif self.parameter['type'] == "TextLineType":
+                    line_suffix = "_line%04d" % idx
+
+                    # Save text line:
+                    segment.add_TextLine(
+                        TextLineType(
+                            id=self.page_id+segment_suffix+line_suffix,
+                            Coords=CoordsType(
+                                points=points_from_polygon(polygon)
+                            )
+                        )
+                    )
 
     def process(self):
         # Ensure path to model is absolute:

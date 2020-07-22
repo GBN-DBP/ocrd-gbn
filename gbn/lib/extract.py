@@ -188,6 +188,7 @@ class Extracting():
             image = sub_image
 
         self.contours, self.hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        self.contour_areas = [cv2.contourArea(contour) for contour in self.contours]
         self.boxes = np.array([cv2.boundingRect(contour) for contour in self.contours])
         self.resolved_boxes = np.array([resolve_box(box) for box in self.boxes])
 
@@ -205,6 +206,7 @@ class Extracting():
         '''
 
         self.contours = [self.contours[idx] for idx in indices]
+        self.contour_areas = [self.contour_areas[idx] for idx in indices]
         self.filter_boxes(indices)
 
     def filter_by_hierarchy(self):
@@ -235,10 +237,7 @@ class Extracting():
         '''
 
         indices = []
-        for idx, contour in enumerate(self.contours):
-            # Get area of contour:
-            area = cv2.contourArea(contour)
-
+        for idx, area in enumerate(self.contour_areas):
             if area >= self.min_area and area <= self.max_area:
                 indices.append(idx)
 
