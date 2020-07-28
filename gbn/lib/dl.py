@@ -4,11 +4,16 @@ import cv2
 import tensorflow as tf
 import keras.models
 
-class Predicting():
+class predict():
     '''
-    Methods for predicting characteristics of images given a deep learning model
+    Methods for predicting characteristics of images given a deep learning model.
     '''
+
     def __init__(self, model_path, shaping):
+        '''
+        Constructs a predict object from a model path and its shaping algorithm.
+        '''
+
         self.model_path = model_path
         self.shaping = shaping
 
@@ -36,8 +41,9 @@ class Predicting():
 
     def init_session(self):
         '''
-        Initiates a session allowing GPU growth
+        Initiates a tensorflow session allowing GPU growth.
         '''
+
         cfg = tf.ConfigProto()
         cfg.gpu_options.allow_growth = True
 
@@ -45,8 +51,9 @@ class Predicting():
 
     def perform_prediction(self, image):
         '''
-        Performs the actual prediction given an image whose shape matches the model input
+        Performs the actual prediction given an image whose shape matches the model input.
         '''
+
         # Reshape image to model input shape (tensor):
         image = image.reshape(self.input_shape)
 
@@ -78,8 +85,9 @@ class Predicting():
 
     def predict_resize(self, image):
         '''
-        Performs a prediction on the given image by resizing it to the model input shape
+        Performs a prediction on the given image by resizing it to the model input shape.
         '''
+
         # Get original image shape:
         image_shape = image.shape
 
@@ -97,8 +105,9 @@ class Predicting():
 
     def predict_split(self, image):
         '''
-        Performs a prediction on the given image by splitting it into patches with the same shape as the model input shape
+        Performs a prediction on the given image by splitting it into patches with the same shape as the model input shape.
         '''
+
         # Get original image shape:
         image_shape = image.shape
 

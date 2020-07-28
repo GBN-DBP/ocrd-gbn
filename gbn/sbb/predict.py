@@ -1,6 +1,6 @@
-from gbn.lib.util import contour_to_polygon, pil_to_cv2_rgb, cv2_to_pil_gray
-from gbn.lib.predict import Predicting
-from gbn.lib.extract import Extracting
+from gbn.lib.dl import predict
+from gbn.lib.struct import image
+from gbn.lib.util import pil_to_cv2_rgb, cv2_to_pil_gray
 from gbn.tool import OCRD_TOOL
 
 from ocrd import Processor
@@ -30,24 +30,27 @@ class OcrdGbnSbbPredict(Processor):
         # Get labels per-pixel and map them to grayscale:
         segment_prediction = predictor.predict(segment_image) * 255
 
-        # Construct characteristic extractor for segment prediction:
-        extractor = Extracting(segment_prediction)
+        # Wrap prediction into image object:
+        segment_prediction = image(segment_image)
 
         # Find contours of prediction:
-        extractor.analyse_contours()
+        contours = segment_prediction.analyse_contours()
 
-        # Filter out redundant contours:
-        extractor.filter_by_hierarchy()
+        # Filter out child contours:
+        contours = list(filter(lambda x: not x.is_child(), contours))
 
         # Filter out invalid polygons:
-        extractor.filter_by_geometry()
+        contours = list(filter(lambda x: x.is_polygon(), contours))
 
         if self.parameter['type'] == "BorderType":
+            # Get areas of all contours:
+            areas = [cnt.area for cnt in contours]
+
             # Get largest contour:
-            contour = extractor.contours[extractor.contour_areas.index(max(extractor.contour_areas))]
+            cnt = contours[areas.index(max(areas))]
 
             # Convert to absolute (page) coordinates:
-            polygon = coordinates_for_segment(contour_to_polygon(contour), segment_image, segment_xywh)
+            polygon = coordinates_for_segment(cnt.points, segment_image, segment_xywh)
 
             # Save border:
             segment.set_Border(
@@ -57,42 +60,45 @@ class OcrdGbnSbbPredict(Processor):
                     )
                 )
             )
-        else:
-            for idx, contour in enumerate(extractor.contours):
+        elif self.parameter['type'] == "TextRegionType":
+            for idx, cnt in enumerate(contours):
                 # Convert to absolute (page) coordinates:
-                polygon = coordinates_for_segment(contour_to_polygon(contour), segment_image, segment_xywh)
+                polygon = coordinates_for_segment(cnt.points, segment_image, segment_xywh)
 
-                if self.parameter['type'] == "TextRegionType":
-                    region_suffix = "_region%04d" % idx
+                region_suffix = "_region%04d" % idx
 
-                    # Save text region:
-                    segment.add_TextRegion(
-                        TextRegionType(
-                            id=self.page_id+segment_suffix+region_suffix,
-                            Coords=CoordsType(
-                                points=points_from_polygon(polygon)
-                            )
+                # Save text region:
+                segment.add_TextRegion(
+                    TextRegionType(
+                        id=self.page_id+segment_suffix+region_suffix,
+                        Coords=CoordsType(
+                            points=points_from_polygon(polygon)
                         )
                     )
-                elif self.parameter['type'] == "TextLineType":
-                    line_suffix = "_line%04d" % idx
+                )
+        elif self.parameter['type'] == "TextLineType":
+            for idx, cnt in enumerate(contours):
+                # Convert to absolute (page) coordinates:
+                polygon = coordinates_for_segment(cnt.points, segment_image, segment_xywh)
 
-                    # Save text line:
-                    segment.add_TextLine(
-                        TextLineType(
-                            id=self.page_id+segment_suffix+line_suffix,
-                            Coords=CoordsType(
-                                points=points_from_polygon(polygon)
-                            )
+                line_suffix = "_line%04d" % idx
+
+                # Save text line:
+                segment.add_TextLine(
+                    TextLineType(
+                        id=self.page_id+segment_suffix+line_suffix,
+                        Coords=CoordsType(
+                            points=points_from_polygon(polygon)
                         )
                     )
+                )
 
     def process(self):
         # Ensure path to model is absolute:
         self.parameter['model'] = realpath(self.parameter['model'])
 
         # Construct predictor object:
-        predictor = Predicting(self.parameter['model'], self.parameter['shaping'])
+        predictor = predict(self.parameter['model'], self.parameter['shaping'])
 
         for (self.n, self.input_file) in enumerate(self.input_files):
             LOG.info("Processing input file: %i / %s", self.n, self.input_file)

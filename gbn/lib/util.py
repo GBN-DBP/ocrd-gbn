@@ -1,68 +1,6 @@
 import numpy as np
 import cv2
 import PIL.Image
-import scipy.ndimage
-import shapely.geometry
-
-def resolve_box(box):
-    '''
-    Retrieves the x0, y0, x1, y1 coordinates from the given box
-    '''
-
-    return box[0], box[1], box[0] + box[2], box[1] + box[3]
-
-def box_to_polygon(box, offset=(0, 0)):
-    '''
-    Converts box to polygon (set of points)
-    '''
-
-    x0, y0, x1, y1 = resolve_box(box)
-
-    # Apply offset:
-    x0 += offset[0]
-    y0 += offset[1]
-    x1 += offset[0]
-    y1 += offset[1]
-
-    return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
-
-def contour_to_polygon(contour):
-    '''
-    Converts cv2 contour to polygon (as in OCR-D core)
-    '''
-
-    # TODO: find a simpler way
-    polygon = shapely.geometry.Polygon([point[0] for point in contour])
-    return np.array([point for point in polygon.exterior.coords], dtype=np.uint)
-
-def draw_box(image, box, color, thickness):
-    '''
-    Draws box rectangle on image
-    '''
-
-    x0, y0, x1, y1 = resolve_box(box)
-
-    cv2.rectangle(image, (x0, y0), (x1, y1), color, thickness)
-
-    return image
-
-def draw_polygon(image, polygon, color, thickness):
-    '''
-    Draws polygon on image
-    '''
-
-    cv2.polylines(image, np.int32([polygon]), True, color, thickness)
-
-    return image
-
-def slice_image(image, box):
-    '''
-    Slices the given image in the x,y coordinates described in the given box
-    '''
-
-    x0, y0, x1, y1 = resolve_box(box)
-
-    return image[y0:y1, x0:x1]
 
 def invert_image(image):
     '''
@@ -154,15 +92,3 @@ def gray_to_bgr(image):
     Converts a grayscale cv2 image to BGR
     '''
     return cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-
-def binary_to_mask(image):
-    '''
-    Converts a binary (grayscale) cv2 image to a Numpy mask
-    '''
-    # Map pixels from [0, 255] (grayscale) to [0, 1] (binary):
-    image = image / 255.0
-
-    # Convert image array to boolean (mask):
-    image = image.astype(np.bool_)
-
-    return image
