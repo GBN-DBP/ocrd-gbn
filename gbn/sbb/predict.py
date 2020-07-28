@@ -31,7 +31,7 @@ class OcrdGbnSbbPredict(Processor):
         segment_prediction = predictor.predict(segment_image) * 255
 
         # Wrap prediction into image object:
-        segment_prediction = image(segment_image)
+        segment_prediction = image(segment_prediction)
 
         # Find contours of prediction:
         contours = segment_prediction.analyse_contours()
