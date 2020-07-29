@@ -3,20 +3,20 @@ import cv2
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 
-class bbox:
+class BoundingBox:
     '''
     Represents the bounding box of a shape in an image.
     '''
 
     def __init__(self, rectangle):
         '''
-        Constructs a bbox object from a cv2 rectangle (x, y, w, h).
+        Constructs a BoundingBox object from a cv2 rectangle (x, y, w, h).
         '''
 
         # Parse the rectangle:
         self.x0, self.y0, self.width, self.height = rectangle
 
-        # Calculate bounds on each axis:
+        # Calculate boundaries on each axis:
         self.x1 = self.x0 + self.width
         self.y1 = self.y0 + self.height
 
@@ -24,12 +24,12 @@ class bbox:
         self.area = self.width * self.height
 
     @classmethod
-    def from_points(self, points):
+    def from_polygon(self, polygon):
         '''
-        Constructs a bbox object from a list of points through cv2.boundingRect.
+        Constructs a BoundingBox object from a Polygon object through cv2.boundingRect.
         '''
 
-        return bbox(cv2.boundingRect(points))
+        return BoundingBox(cv2.boundingRect(polygon.points))
 
     def split(self, intervals, axis):
         '''
@@ -41,38 +41,95 @@ class bbox:
         if axis:
             # On y-axis (1):
             for y0, y1 in intervals:
-                boxes.append(bbox([self.x0, y0, self.width, y1 - y0]))
+                boxes.append(BoundingBox([self.x0, y0, self.width, y1 - y0]))
         else:
             # on x-axis (0):
             for x0, x1 in intervals:
-                boxes.append(bbox([x0, self.y0, x1 - x0, self.height]))
+                boxes.append(BoundingBox([x0, self.y0, x1 - x0, self.height]))
 
         return boxes
 
-class contour:
+class Polygon:
     '''
-    Wrapper of cv2 contour (shape of an image).
+    Represents a polygon.
     '''
 
-    def __init__(self, points, hierarchy):
+    def __init__(self, points):
         '''
-        Constructs a contour object. Both the points and the hierarchy returned from the cv2.findContours call with
-        mode cv2.RETR_TREE must be provided.
+        Constructs a Polygon object from a list of points.
         '''
 
         self.points = points
 
+        # Extract bounding box of polygon:
+        self.bbox = BoundingBox.from_polygon(self)
+
+        # Map points to origin (x0 == 0, y0 == 0):
+        self.mapped_points = np.stack((self.points[:, 0] - self.bbox.x0, self.points[:, 1] - self.bbox.y0), axis=1)
+
+    def is_valid(self):
+        '''
+        Checks the validity of the polygon.
+        '''
+
+        return len(self.points) >= 3
+
+    def to_mask(self):
+        '''
+        Converts polygon to mask.
+        '''
+
+        # Create a background canvas with the shape of the polygon's bounding box:
+        canvas = np.zeros((self.bbox.height, self.bbox.width), dtype=np.uint8)
+
+        # Draw polygon on background canvas:
+        mask = cv2.fillPoly(canvas, np.int32([self.mapped_points]), 1)
+
+        # Convert array to boolean:
+        mask = mask.astype(np.bool_)
+
+        return mask
+
+class Contour:
+    '''
+    Wrapper of cv2 contour (shape of an image).
+    '''
+
+    def __init__(self, contour, hierarchy):
+        '''
+        Constructs a Contour object. Both the actual contour and the hierarchy returned from the cv2.findContours call
+        with mode cv2.RETR_TREE must be provided.
+        '''
+
+        self.contour = contour
+
+        # Get area of contour:
+        self.area = cv2.contourArea(self.contour)
+
         # Parse hierarchy from cv2 array:
         self.next, self.previous, self.first_child, self.parent = hierarchy
 
-        # Extract bounding box of contour:
-        self.box = bbox.from_points(self.points)
+        # Remove redundant axis 1 and wrap contour in Polygon object:
+        self.polygon = Polygon(self.contour.reshape(self.contour.shape[0], self.contour.shape[2]))
 
-        # Map points to origin (x0 == 0, y0 == 0):
-        self.mapped_points = np.stack((self.points[:, 0] - self.box.x0, self.points[:, 1] - self.box.y0), axis=1)
+    @classmethod
+    def from_image(self, image):
+        '''
+        Retrieves the image contours and wraps them in Contour objects.
+        '''
 
-        # Get area of contour:
-        self.area = cv2.contourArea(self.points)
+        # Get contours and their respective hierarchy information:
+        contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Remove redundant axis 0:
+        hierarchy = hierarchy.reshape(hierarchy.shape[1], hierarchy.shape[2])
+
+        instances = []
+        for cnt, h in zip(contours, hierarchy):
+            # Wrap contour and hierarchy info in Contour object::
+            instances.append(Contour(cnt, h))
+
+        return instances
 
     def is_child(self):
         '''
@@ -81,37 +138,14 @@ class contour:
 
         return self.parent != -1
 
-    def is_polygon(self):
-        '''
-        Checks whether the contour composes a valid polygon.
-        '''
-
-        return len(self.points) >= 3
-
-    def to_mask(self):
-        '''
-        Converts contour to mask.
-        '''
-
-        # Create a background canvas with the shape of the contour's bounding box:
-        canvas = np.zeros((self.box.height, self.box.width), dtype=np.uint8)
-
-        # Draw contour on background canvas:
-        mask = cv2.drawContours(canvas, [self.mapped_points], -1, 1, -1)
-
-        # Convert array to boolean:
-        mask = mask.astype(np.bool_)
-
-        return mask
-
-class projection:
+class Projection:
     '''
-    Represents a projection of the foreground pixels of an image (projection profiling).
+    Represents a projection of the foreground pixels of an image (for projection profiling).
     '''
 
     def __init__(self, signal):
         '''
-        Constructs a projection object from an already extracted signal.
+        Constructs a Projection object from an already extracted signal.
         '''
         self.signal = signal
 
@@ -128,7 +162,7 @@ class projection:
         # Smooth the resulting signal:
         signal = gaussian_filter1d(signal, sigma)
 
-        return projection(signal)
+        return Projection(signal)
 
     def find_valleys(self):
         '''
@@ -151,79 +185,10 @@ class projection:
         # Split consecutive indices (continuous regions) - Based on https://stackoverflow.com/a/7353335:
         consecutive = np.split(nonzero, np.where(np.diff(nonzero > 1)[0] + 1))
 
-        projections = []
         intervals = []
         for grp in consecutive:
             if len(grp) >= 2:
-                # Create a new projection from the continuous interval:
-                projections.append(projection(self.signal[grp]))
-
                 # Extract the start and end point of each consecutive interval:
                 intervals.append((grp[0], grp[-1]))
 
-        return projections, intervals
-
-class image:
-    '''
-    Wrapper of cv2 image.
-    '''
-
-    def __init__(self, img):
-        '''
-        Constructs an image object from a cv2 binary image (foreground must be 255 (white) and background 0 (black)).
-        '''
-
-        self.img = img
-
-    def analyse_contours(self):
-        '''
-        Retrieves the image contours.
-        '''
-
-        # Get contours and their respective hierarchy information:
-        polygons, hierarchy = cv2.findContours(self.img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-        # Remove redundant axis 0:
-        hierarchy = hierarchy.reshape(hierarchy.shape[1], hierarchy.shape[2])
-
-        self.contours = []
-        for polygon, hier in zip(polygons, hierarchy):
-            # Remove redundant axis 1:
-            polygon = polygon.reshape(polygon.shape[0], polygon.shape[2])
-
-            # Save polygon and hierarchy information as a contour object:
-            self.contours.append(contour(polygon, hier))
-
-        return self.contours
-
-    def crop(self, box):
-        '''
-        Crops the image given a bounding box.
-        '''
-
-        return image(self.img[box.y0:box.y1, box.x0:box.x1])
-
-    def mask(self, msk):
-        '''
-        Masks the image by setting False part to background.
-        '''
-
-        self.img[not msk] = 0
-
-    def reshape(self, shape):
-        '''
-        Reshapes the image to given shape (np.reshape wrapper).
-        '''
-
-        self.img = self.img.reshape(shape)
-
-        return self.img
-
-    def resize(self, shape):
-        '''
-        Resizes the image to given shape (cv2.resize wrapper).
-        '''
-
-        self.img = cv2.resize(self.img, shape, interpolation=cv2.INTER_NEAREST)
-
-        return self.img
+        return intervals

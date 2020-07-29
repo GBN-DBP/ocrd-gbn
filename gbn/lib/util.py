@@ -2,17 +2,6 @@ import numpy as np
 import cv2
 import PIL.Image
 
-def invert_image(image):
-    '''
-    Makes white pixels black and black pixels white
-    '''
-
-    mask = (image / 255).astype(np.bool_)
-    image = np.ones_like(image) * 255
-    image[mask == True] = 0
-
-    return image
-
 def pil_to_cv2_rgb(image, bg_color=255):
     '''
     Converts PIL RGB image to cv2 (OpenCV) BGR image (Numpy array)
@@ -86,9 +75,3 @@ def cv2_to_pil_gray(image, alpha=None):
         image.putalpha(alpha)
 
     return image
-
-def gray_to_bgr(image):
-    '''
-    Converts a grayscale cv2 image to BGR
-    '''
-    return cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)

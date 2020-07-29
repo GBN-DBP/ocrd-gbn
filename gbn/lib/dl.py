@@ -4,14 +4,16 @@ import cv2
 import tensorflow as tf
 import keras.models
 
-class predict():
+from gbn.lib.struct import Contour, Polygon
+
+class Model:
     '''
-    Methods for predicting characteristics of images given a deep learning model.
+    Abstraction layer for a binary deep learning Keras model.
     '''
 
     def __init__(self, model_path, shaping):
         '''
-        Constructs a predict object from a model path and its shaping algorithm.
+        Constructs a Model object from a model path and its shaping algorithm.
         '''
 
         self.model_path = model_path
@@ -31,7 +33,7 @@ class predict():
         self.input_shape = (1, self.model.input_shape[1], self.model.input_shape[2], self.model.input_shape[3])
         self.output_shape = (1, self.model.output_shape[1], self.model.output_shape[2], self.model.output_shape[3])
 
-        # Set predict() method to selected algorithm:
+        # Set Model.predict method to selected algorithm:
         if shaping == "resize":
             self.predict = self.predict_resize
         elif shaping == "split":
@@ -51,7 +53,7 @@ class predict():
 
     def perform_prediction(self, image):
         '''
-        Performs the actual prediction given an image whose shape matches the model input.
+        Performs a prediction given an image whose shape matches the model input.
         '''
 
         # Reshape image to model input shape (tensor):
@@ -81,6 +83,9 @@ class predict():
         # Get labels by converting from likeliness of each class to label of most likely class:
         prediction = np.argmax(prediction, axis=2).astype(np.uint8)
 
+        # Map pixels from [0, 1] (binary) to [0, 255] (grayscale):
+        prediction = prediction * 255
+
         return prediction
 
     def predict_resize(self, image):
@@ -101,11 +106,16 @@ class predict():
         prediction = self.perform_prediction(image)
 
         # Resize prediction to original image shape:
-        return cv2.resize(prediction, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_NEAREST)
+        prediction = cv2.resize(prediction, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_NEAREST)
+
+        # Wrap prediction in a Prediction object:
+        prediction = Prediction(prediction)
+
+        return prediction
 
     def predict_split(self, image):
         '''
-        Performs a prediction on the given image by splitting it into patches with the same shape as the model input shape.
+        Performs a prediction on the given image by splitting it into patches whose shape matches the model input.
         '''
 
         # Get original image shape:
@@ -114,8 +124,11 @@ class predict():
         # Patch shape is equal to the height and width of model input:
         patch_shape = (self.input_shape[1], self.input_shape[2])
 
+        # Get rest of division of image shape by patch shape (remaining dimensions after splitting into patches):
+        rest = (image_shape[0] % patch_shape[0], image_shape[1] % patch_shape[1])
+
         # Get padding for splitting image into equal-sized patches:
-        padding = (patch_shape[0] - (image_shape[0] % patch_shape[0]), patch_shape[1] - (image_shape[1] % patch_shape[1]))
+        padding = (patch_shape[0] - rest[0], patch_shape[1] - rest[1])
 
         # Split padding equally around the image:
         padding_top = math.floor(padding[0] / 2)
@@ -124,7 +137,15 @@ class predict():
         padding_right = math.ceil(padding[1] / 2)
 
         # Apply padding:
-        image = cv2.copyMakeBorder(image, padding_top, padding_bottom, padding_left, padding_right, cv2.BORDER_CONSTANT, (255, 255, 255))
+        image = cv2.copyMakeBorder(
+            image,
+            padding_top,
+            padding_bottom,
+            padding_left,
+            padding_right,
+            cv2.BORDER_CONSTANT,
+            (255, 255, 255)
+        )
 
         # Map pixels from [0, 255] (grayscale) to [0, 1] (binary):
         image = image / 255.0
@@ -158,4 +179,46 @@ class predict():
         # Remove padding from canvas of predictions:
         prediction = canvas[padding_top+1:padding_top+1+image_shape[0], padding_left+1:padding_left+1+image_shape[1]]
 
+        # Wrap prediction in a Prediction object:
+        prediction = Prediction(prediction)
+
         return prediction
+
+class Prediction:
+    '''
+    Wrapper of cv2 image predicted by a binary model.
+    '''
+
+    def __init__(self, img):
+        '''
+        Constructs a Prediction object from a cv2 binary image where foreground is 255 (white) and background 0 (black).
+        '''
+
+        self.img = img
+
+    def crop(self, polygon):
+        '''
+        Crops the prediction image given a Polygon object.
+        '''
+
+        # Crop the bounding rectangle of the polygon:
+        cropped = self.img[polygon.bbox.y0:polygon.bbox.y1, polygon.bbox.x0:polygon.bbox.x1]
+
+        # Mask polygon by setting everything outside to background:
+        cropped[not polygon.to_mask()] = 0
+
+        return Prediction(cropped)
+
+    def to_binary_image(self):
+        '''
+        Converts prediction image (0 bg / 255 fg) to a document binary image (0 fg / 255 bg).
+        '''
+
+        # Convert to mask:
+        mask = (self.img / 255).astype(np.bool_)
+
+        # Let background be white and foreground black:
+        image = np.ones_like(self.img) * 255
+        image[mask == True] = 0
+
+        return image

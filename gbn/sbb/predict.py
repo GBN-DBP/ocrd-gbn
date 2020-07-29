@@ -1,5 +1,5 @@
-from gbn.lib.dl import predict
-from gbn.lib.struct import image
+from gbn.lib.dl import Model, Prediction
+from gbn.lib.struct import Contour, Polygon
 from gbn.lib.util import pil_to_cv2_rgb, cv2_to_pil_gray
 from gbn.tool import OCRD_TOOL
 
@@ -23,34 +23,31 @@ class OcrdGbnSbbPredict(Processor):
         if hasattr(self, "output_file_grp"):
             self.page_grp = self.output_file_grp
 
-    def _predict_segment(self, segment, segment_image, segment_xywh, segment_suffix, predictor):
+    def _predict_segment(self, segment, segment_image, segment_xywh, segment_suffix, model):
         # Convert PIL to cv2 (RGB):
         segment_image, _ = pil_to_cv2_rgb(segment_image)
 
-        # Get labels per-pixel and map them to grayscale:
-        segment_prediction = predictor.predict(segment_image) * 255
-
-        # Wrap prediction into image object:
-        segment_prediction = image(segment_prediction)
+        # Get prediction for segment:
+        segment_prediction = model.predict(segment_image)
 
         # Find contours of prediction:
-        contours = segment_prediction.analyse_contours()
+        contours = Contour.from_image(segment_prediction.img)
 
         # Filter out child contours:
-        contours = list(filter(lambda x: not x.is_child(), contours))
+        contours = list(filter(lambda cnt: not cnt.is_child(), contours))
 
         # Filter out invalid polygons:
-        contours = list(filter(lambda x: x.is_polygon(), contours))
+        contours = list(filter(lambda cnt: cnt.polygon.is_valid(), contours))
 
         if self.parameter['type'] == "BorderType":
-            # Get areas of all contours:
-            areas = [cnt.area for cnt in contours]
+            # Sort contours by area:
+            contours = sorted(contours, key=lambda cnt: cnt.area)
 
-            # Get largest contour:
-            cnt = contours[areas.index(max(areas))]
+            # Get polygon of largest contour:
+            polygon = contours[-1].polygon
 
             # Convert to absolute (page) coordinates:
-            polygon = coordinates_for_segment(cnt.points, segment_image, segment_xywh)
+            polygon = coordinates_for_segment(polygon.points, segment_image, segment_xywh)
 
             # Save border:
             segment.set_Border(
@@ -63,7 +60,7 @@ class OcrdGbnSbbPredict(Processor):
         elif self.parameter['type'] == "TextRegionType":
             for idx, cnt in enumerate(contours):
                 # Convert to absolute (page) coordinates:
-                polygon = coordinates_for_segment(cnt.points, segment_image, segment_xywh)
+                polygon = coordinates_for_segment(cnt.polygon.points, segment_image, segment_xywh)
 
                 region_suffix = "_region%04d" % idx
 
@@ -79,7 +76,7 @@ class OcrdGbnSbbPredict(Processor):
         elif self.parameter['type'] == "TextLineType":
             for idx, cnt in enumerate(contours):
                 # Convert to absolute (page) coordinates:
-                polygon = coordinates_for_segment(cnt.points, segment_image, segment_xywh)
+                polygon = coordinates_for_segment(cnt.polygon.points, segment_image, segment_xywh)
 
                 line_suffix = "_line%04d" % idx
 
@@ -97,8 +94,8 @@ class OcrdGbnSbbPredict(Processor):
         # Ensure path to model is absolute:
         self.parameter['model'] = realpath(self.parameter['model'])
 
-        # Construct predictor object:
-        predictor = predict(self.parameter['model'], self.parameter['shaping'])
+        # Construct Model object:
+        model = Model(self.parameter['model'], self.parameter['shaping'])
 
         for (self.n, self.input_file) in enumerate(self.input_files):
             LOG.info("Processing input file: %i / %s", self.n, self.input_file)
@@ -121,7 +118,7 @@ class OcrdGbnSbbPredict(Processor):
                     page_image,
                     page_xywh,
                     "",
-                    predictor
+                    model
                 )
             elif self.parameter['operation_level'] == "region":
                 # Get image from PAGE:
@@ -148,7 +145,7 @@ class OcrdGbnSbbPredict(Processor):
                         region_image,
                         region_xywh,
                         region_suffix,
-                        predictor
+                        model
                     )
             elif self.parameter['operation_level'] == "line":
                 # Get image from PAGE:
@@ -180,7 +177,7 @@ class OcrdGbnSbbPredict(Processor):
                             line_image,
                             line_xywh,
                             line_suffix,
-                            predictor
+                            model
                         )
 
             # Add metadata about this operation:
