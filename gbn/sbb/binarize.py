@@ -49,7 +49,14 @@ class OcrdGbnSbbBinarize(OcrdGbnSbbPredict):
                 # Convert to cv2 binary image then to PIL:
                 page_prediction = cv2_to_pil_gray(page_prediction.to_binary_image(), alpha=alpha)
 
-                self._add_AlternativeImage(page_id, page, page_image, page_xywh, "", "binarized")
+                self._add_AlternativeImage(
+                    page_id,
+                    page,
+                    page_prediction,
+                    page_xywh,
+                    "",
+                    "binarized"
+                )
 
             elif self.parameter['operation_level'] == "region":
                 # Get image from PAGE:
@@ -80,7 +87,14 @@ class OcrdGbnSbbBinarize(OcrdGbnSbbPredict):
                     # Convert to cv2 binary image then to PIL:
                     region_prediction = cv2_to_pil_gray(region_prediction.to_binary_image(), alpha=alpha)
 
-                    self._add_AlternativeImage(page_id, region, region_image, region_xywh, region_id, "binarized")
+                    self._add_AlternativeImage(
+                        page_id,
+                        region,
+                        region_prediction,
+                        region_xywh,
+                        region_id,
+                        "binarized"
+                    )
 
             elif self.parameter['operation_level'] == "line":
                 # Get image from PAGE:
@@ -116,7 +130,14 @@ class OcrdGbnSbbBinarize(OcrdGbnSbbPredict):
                         # Convert to cv2 binary image then to PIL:
                         line_prediction = cv2_to_pil_gray(line_prediction.to_binary_image(), alpha=alpha)
 
-                        self._add_AlternativeImage(page_id, line, line_image, line_xywh, region_id+line_id, "binarized")
+                        self._add_AlternativeImage(
+                            page_id,
+                            line,
+                            line_prediction,
+                            line_xywh,
+                            region_id+line_id,
+                            "binarized"
+                        )
 
             # Add metadata about this operation:
             metadata = pcgts.get_Metadata()
