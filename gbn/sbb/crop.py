@@ -60,7 +60,7 @@ class OcrdGbnSbbCrop(OcrdGbnSbbPredict):
             # Get polygon of largest contour:
             border_polygon = contours[-1].polygon
 
-            self._set_Border(page, page_image, page_xywh, border_polygon)
+            self._set_Border(page, page_image, page_xywh, border_polygon.points)
 
             # Add metadata about this operation:
             metadata = pcgts.get_Metadata()
