@@ -36,20 +36,27 @@ class OcrdGbnSbbPredict(Processor):
                     self.fallback_image_filegrp
                 )
 
-    @property
-    def file_id(self):
-        file_id = self.input_file.ID.replace(self.input_file_grp, self.image_grp)
+    def file_id(self, file_grp):
+        file_id = self.input_file.ID.replace(self.input_file_grp, file_grp)
 
         if file_id == self.input_file.ID:
-            file_id = concat_padded(self.image_grp, self.page_num)
+            file_id = concat_padded(file_grp, self.page_num)
 
         return file_id
+
+    @property
+    def page_file_id(self):
+        return self.file_id(self.page_grp)
+
+    @property
+    def image_file_id(self):
+        return self.file_id(self.image_grp)
 
     def _add_AlternativeImage(self, page_id, segment, segment_image, segment_xywh, segment_id, comments):
         # Save image:
         file_path = self.workspace.save_image_file(
             segment_image,
-            self.file_id+segment_id,
+            self.image_file_id+segment_id,
             page_id=page_id,
             file_grp=self.image_grp
         )
@@ -309,10 +316,10 @@ class OcrdGbnSbbPredict(Processor):
 
             # Save XML PAGE:
             self.workspace.add_file(
-                 ID=self.file_id,
+                 ID=self.page_file_id,
                  file_grp=self.page_grp,
                  pageId=self.page_id,
                  mimetype=MIMETYPE_PAGE,
-                 local_filename=join(self.output_file_grp, self.file_id)+".xml",
+                 local_filename=join(self.output_file_grp, self.page_file_id)+".xml",
                  content=to_xml(pcgts)
             )

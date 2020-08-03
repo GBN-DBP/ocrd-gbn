@@ -86,10 +86,10 @@ class OcrdGbnSbbCrop(OcrdGbnSbbPredict):
 
             # Save XML PAGE:
             self.workspace.add_file(
-                 ID=self.file_id,
+                 ID=self.page_file_id,
                  file_grp=self.page_grp,
                  pageId=self.page_id,
                  mimetype=MIMETYPE_PAGE,
-                 local_filename=join(self.output_file_grp, self.file_id)+".xml",
+                 local_filename=join(self.output_file_grp, self.page_file_id)+".xml",
                  content=to_xml(pcgts)
             )
