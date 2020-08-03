@@ -1,323 +1,74 @@
-from gbn.lib.util import pil_to_cv2_rgb, pil_to_cv2_gray, cv2_to_pil_gray, binary_to_mask
-from gbn.lib.predict import Predicting
+from gbn.lib.dl import Model, Prediction
+from gbn.lib.struct import Contour, Polygon
+from gbn.lib.util import pil_to_cv2_rgb, cv2_to_pil_gray
 from gbn.tool import OCRD_TOOL
+from gbn.sbb.predict import OcrdGbnSbbPredict
 
-from ocrd import Processor
 from ocrd_modelfactory import page_from_file
 from ocrd_models.ocrd_page import to_xml
-from ocrd_models.ocrd_page_generateds import AlternativeImageType, LabelsType, LabelType, MetadataItemType
-from ocrd_utils import concat_padded, getLogger, MIMETYPE_PAGE
+from ocrd_models.ocrd_page_generateds import AlternativeImageType, BorderType, CoordsType, LabelsType, LabelType, MetadataItemType, TextLineType, TextRegionType
+from ocrd_utils import concat_padded, coordinates_for_segment, getLogger, MIMETYPE_PAGE, points_from_polygon
 
 from os.path import realpath, join
 
-TOOL = "ocrd-gbn-sbb-crop"
-LOG = getLogger("processor.OcrdGbnSbbCrop")
+class OcrdGbnSbbCrop(OcrdGbnSbbPredict):
+    tool = "ocrd-gbn-sbb-crop"
+    log = getLogger("processor.OcrdGbnSbbCrop")
 
-FALLBACK_FILEGRP_IMG = "OCR-D-IMG-CROP"
-FILEGRP_PRED = "OCR-D-IMG-PRED"
-
-class OcrdGbnSbbCrop(Processor):
-    def __init__(self, *args, **kwargs):
-        kwargs['ocrd_tool'] = OCRD_TOOL['tools'][TOOL]
-        kwargs['version'] = OCRD_TOOL['version']
-        super(OcrdGbnSbbCrop, self).__init__(*args, **kwargs)
-
-        if hasattr(self, "output_file_grp"):
-            try:
-                self.page_grp, self.image_grp = self.output_file_grp.split(',')
-                self.output_file_grp = self.page_grp
-            except ValueError:
-                self.page_grp = self.output_file_grp
-                self.image_grp = FALLBACK_FILEGRP_IMG
-                LOG.info("No output file group for images specified, falling back to '%s'", FALLBACK_FILEGRP_IMG)
-
-    def _save_segment_image(self, segment, segment_image, segment_suffix, comments, file_grp=None):
-        # If no file group specified, use default group for images:
-        if file_grp is None:
-            file_grp = self.image_grp
-
-        # Get file ID of image to be saved:
-        file_id = self.input_file.ID.replace(self.input_file_grp, file_grp)
-
-        if file_id == self.input_file.ID:
-            file_id = concat_padded(file_grp, self.n)
-
-        # Concatenate suffix to ID:
-        file_id += segment_suffix
-
-        # Save image:
-        file_path = self.workspace.save_image_file(
-            segment_image,
-            file_id,
-            page_id=self.page_id,
-            file_grp=file_grp
-        )
-
-        # Add metadata about saved image:
-        segment.add_AlternativeImage(
-            AlternativeImageType(
-                filename=file_path,
-                comments=comments
-            )
-        )
-
-    def _predict_segment(self, segment, segment_image, segment_suffix, predictor):
-        # Convert PIL to cv2 (RGB):
-        segment_image, alpha = pil_to_cv2_rgb(segment_image)
-
-        # Get labels per-pixel and map them to grayscale:
-        segment_prediction = predictor.predict(segment_image) * 255
-
-        # Convert cv2 to PIL (grayscale):
-        segment_prediction = cv2_to_pil_gray(segment_prediction, alpha)
-
-        # Save prediction image as AlternativeImage of segment, setting the 'comments' field to the model path:
-        self._save_segment_image(
-            segment,
-            segment_prediction,
-            segment_suffix + predictor.model_path.translate(str.maketrans({'/': '_', '.': '_'})),
-            predictor.model_path,
-            file_grp=FILEGRP_PRED
-        )
-
-        return segment_prediction
-
-    def _get_page_prediction(self, predictor, page_selector="", page_filter="", prediction_filter=""):
-        # If caching is enabled:
-        if self.parameter['caching']:
-            try:
-                # Try to cache prediction image from PAGE:
-                page_prediction, page_xywh, _ = self.workspace.image_from_page(
-                    self.page,
-                    self.page_id,
-                    feature_selector=predictor.model_path,
-                    feature_filter=prediction_filter
-                )
-
-                return page_prediction, page_xywh
-            except:
-                LOG.info(
-                    "Unable to cache predictions of input file %i / %s given model %s. Performing prediction instead",
-                    self.n,
-                    self.input_file,
-                    predictor.model_path
-                )
-
-        # Get image from PAGE:
-        page_image, page_xywh, _ = self.workspace.image_from_page(
-            self.page,
-            self.page_id,
-            feature_selector=page_selector,
-            feature_filter=page_filter
-        )
-
-        # Perform prediction:
-        page_prediction = self._predict_segment(
-            self.page,
-            page_image,
-            "",
-            predictor
-        )
-
-        return page_prediction, page_xywh
-
-    def _get_segment_prediction(self, segment, segment_suffix, predictor, segment_selector="", segment_filter="", prediction_filter=""):
-        # If caching is enabled:
-        if self.parameter['caching']:
-            try:
-                # Try to cache prediction image from PAGE:
-                page_prediction, page_xywh, _ = self.workspace.image_from_page(
-                    self.page,
-                    self.page_id,
-                    feature_selector=predictor.model_path,
-                    feature_filter=prediction_filter
-                )
-
-                # Try to cache prediction image from segment:
-                segment_prediction, segment_xywh = self.workspace.image_from_segment(
-                    segment,
-                    page_prediction,
-                    page_xywh,
-                    feature_selector=predictor.model_path,
-                    feature_filter=prediction_filter
-                )
-
-                return segment_prediction, segment_xywh
-            except:
-                LOG.info(
-                    "Unable to cache predictions of input file %i / %s given model %s. Performing prediction instead",
-                    self.n,
-                    self.input_file,
-                    predictor.model_path
-                )
-
-        # Get image from PAGE:
-        page_image, page_xywh, _ = self.workspace.image_from_page(
-            self.page,
-            self.page_id,
-            feature_selector=segment_selector,
-            feature_filter=segment_filter
-        )
-
-        # Get image from segment:
-        segment_image, segment_xywh = self.workspace.image_from_segment(
-            segment,
-            page_image,
-            page_xywh,
-            feature_selector=segment_selector,
-            feature_filter=segment_filter
-        )
-
-        # Perform prediction:
-        segment_prediction = self._predict_segment(
-            segment,
-            segment_image,
-            segment_suffix,
-            predictor
-        )
-
-        return segment_prediction, segment_xywh
-
-    def _process_segment(self, segment, segment_image, segment_xywh, segment_suffix, segment_prediction):
-        # Convert PIL to cv2 (grayscale):
-        segment_image, alpha = pil_to_cv2_gray(segment_image)
-
-        # Convert PIL to cv2 (grayscale):
-        segment_prediction, _ = pil_to_cv2_gray(segment_prediction, bg_color=0)
-
-        # Convert binary prediction to a mask:
-        segment_mask = binary_to_mask(segment_prediction)
-
-        # Set pixels classified as out-of-page to background (white):
-        segment_image[segment_mask == False] = 255
-
-        # Convert cv2 to PIL (grayscale):
-        segment_image = cv2_to_pil_gray(segment_image, alpha)
-
-        # Save binarized image as AlternativeImage of segment:
-        self._save_segment_image(
-            segment,
-            segment_image,
-            segment_suffix,
-            "cropped" if not segment_xywh['features'] else segment_xywh['features'] + ",cropped"
-        )
+    fallback_image_filegrp = "OCR-D-IMG-CROP"
 
     def process(self):
         # Ensure path to model is absolute:
         self.parameter['model'] = realpath(self.parameter['model'])
 
-        # Construct predictor object:
-        predictor = Predicting(self.parameter['model'], self.parameter['shaping'])
+        # Construct Model object:
+        model = Model(self.parameter['model'], self.parameter['shaping'])
 
-        for (self.n, self.input_file) in enumerate(self.input_files):
-            LOG.info("Processing input file: %i / %s", self.n, self.input_file)
+        for (self.page_num, self.input_file) in enumerate(self.input_files):
+            self.log.info("Processing input file: %i / %s", self.page_num, self.input_file)
 
             # Create a new PAGE file from the input file:
-            self.page_id = self.input_file.pageId or self.input_file.ID
-            self.pcgts = page_from_file(self.workspace.download_file(self.input_file))
-            self.page = self.pcgts.get_Page()
+            page_id = self.input_file.pageId or self.input_file.ID
+            pcgts = page_from_file(self.workspace.download_file(self.input_file))
+            page = pcgts.get_Page()
 
-            # Get BINARIZED image from PAGE:
+            # Get image from PAGE:
             page_image, page_xywh, _ = self.workspace.image_from_page(
-                self.page,
-                self.page_id,
-                feature_selector="binarized",
-                feature_filter="deskewed"
+                page,
+                page_id,
+                feature_filter="binarized,cropped"
             )
 
-            if self.parameter['operation_level'] == "page":
-                # Get prediction image:
-                page_prediction, _ = self._get_page_prediction(
-                    predictor,
-                    page_filter="binarized,deskewed",
-                    prediction_filter="deskewed"
-                )
+            # Convert PIL to cv2 (RGB):
+            page_image, _ = pil_to_cv2_rgb(page_image)
 
-                # Crop page:
-                self._process_segment(
-                    self.page,
-                    page_image,
-                    page_xywh,
-                    "",
-                    page_prediction
-                )
-            elif self.parameter['operation_level'] == "region":
-                regions = self.page.get_TextRegion()
+            # Get prediction for segment:
+            page_prediction = model.predict(page_image)
 
-                for region_idx, region in enumerate(regions):
-                    region_suffix = "_region%04d" % region_idx
+            # Find contours of prediction:
+            contours = Contour.from_image(page_prediction.img)
 
-                    # Get prediction image:
-                    region_prediction, region_xywh = self._get_segment_prediction(
-                        region,
-                        region_suffix,
-                        predictor,
-                        segment_filter="binarized,deskewed",
-                        prediction_filter="deskewed"
-                    )
+            # Filter out child contours:
+            contours = list(filter(lambda cnt: not cnt.is_child(), contours))
 
-                    # Get BINARIZED image from TextRegion:
-                    region_image, _ = self.workspace.image_from_segment(
-                        region,
-                        page_image,
-                        page_xywh,
-                        feature_selector="binarized",
-                        feature_filter="deskewed"
-                    )
+            # Filter out invalid polygons:
+            contours = list(filter(lambda cnt: cnt.polygon.is_valid(), contours))
 
-                    # Crop text region:
-                    self._process_segment(
-                        region,
-                        region_image,
-                        region_xywh,
-                        region_suffix,
-                        region_prediction
-                    )
-            elif self.parameter['operation_level'] == "line":
-                regions = self.page.get_TextRegion()
+            # Sort contours by area:
+            contours = sorted(contours, key=lambda cnt: cnt.area)
 
-                for region_idx, region in enumerate(regions):
-                    region_suffix = "_region%04d" % region_idx
+            # Get polygon of largest contour:
+            border_polygon = contours[-1].polygon
 
-                    lines = region.get_TextLine()
-
-                    for line_idx, line in enumerate(lines):
-                        line_suffix = region_suffix + ("_line%04d" % line_idx)
-
-                        # Get prediction image:
-                        line_prediction, line_xywh = self._get_segment_prediction(
-                            line,
-                            line_suffix,
-                            predictor,
-                            segment_filter="binarized,deskewed",
-                            prediction_filter="deskewed"
-                        )
-
-                        # Get BINARIZED image from TextLine:
-                        line_image, _ = self.workspace.image_from_segment(
-                            line,
-                            page_image,
-                            page_xywh,
-                            feature_selector="binarized",
-                            feature_filter="deskewed"
-                        )
-
-                        # Crop text line:
-                        self._process_segment(
-                            line,
-                            line_image,
-                            line_xywh,
-                            line_suffix,
-                            line_prediction
-                        )
+            self._set_Border(page, page_image, page_xywh, border_polygon)
 
             # Add metadata about this operation:
-            metadata = self.pcgts.get_Metadata()
+            metadata = pcgts.get_Metadata()
             metadata.add_MetadataItem(
                 MetadataItemType(
                     type_="processingStep",
                     name=self.ocrd_tool['steps'][0],
-                    value=TOOL,
+                    value=self.tool,
                     Labels=[
                         LabelsType(
                             externalModel="ocrd-tool",
@@ -333,18 +84,12 @@ class OcrdGbnSbbCrop(Processor):
                 )
             )
 
-            # Get file ID of XML PAGE to be saved:
-            file_id = self.input_file.ID.replace(self.input_file_grp, self.page_grp)
-
-            if file_id == self.input_file.ID:
-                file_id = concat_padded(self.page_grp, self.n)
-
             # Save XML PAGE:
             self.workspace.add_file(
-                 ID=file_id,
+                 ID=self.file_id,
                  file_grp=self.page_grp,
                  pageId=self.page_id,
                  mimetype=MIMETYPE_PAGE,
-                 local_filename=join(self.output_file_grp, file_id)+".xml",
-                 content=to_xml(self.pcgts)
+                 local_filename=join(self.output_file_grp, self.file_id)+".xml",
+                 content=to_xml(pcgts)
             )

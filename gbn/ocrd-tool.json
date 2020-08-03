@@ -39,6 +39,7 @@
           "description": "PAGE-XML content type to be predicted",
           "required": true,
           "enum": [
+            "AlternativeImageType",
             "BorderType",
             "TextRegionType",
             "TextLineType"
@@ -89,11 +90,6 @@
             "split"
           ]
         },
-        "caching": {
-          "type": "boolean",
-          "description": "Enables caching of prediction images from the workspace",
-          "default": true
-        },
         "operation_level": {
           "type": "string",
           "description": "PAGE-XML hierarchy level to operate on",
@@ -138,21 +134,6 @@
             "resize",
             "split"
           ]
-        },
-        "caching": {
-          "type": "boolean",
-          "description": "Enables caching of prediction images from the workspace",
-          "default": true
-        },
-        "operation_level": {
-          "type": "string",
-          "description": "PAGE-XML hierarchy level to operate on",
-          "default": "page",
-          "enum": [
-            "page",
-            "region",
-            "line"
-          ]
         }
       }
     },
@@ -173,33 +154,13 @@
         "OCR-D-SEG"
       ],
       "parameters": {
-        "min_particle_size": {
-          "type": "number",
-          "description": "Minimum ratio of the total segment area for a foreground particle to be considered text",
-          "default": 0.00001
-        },
-        "max_particle_size": {
-          "type": "number",
-          "description": "Maximum ratio of the total segment area for a foreground particle to be considered text",
-          "default": 1.0
-        },
-        "min_textline_density": {
-          "type": "number",
-          "description": "Minimum ratio of pixels of a segment predicted as part of text lines for it to be considered a text segment",
-          "default": 0.1
-        },
-        "max_textline_density": {
-          "type": "number",
-          "description": "Maximum ratio of pixels of a segment predicted as part of text lines for it to be considered a text segment",
-          "default": 1.0
-        },
-        "textregions_model": {
+        "region_model": {
           "type": "string",
           "description": "Path to Keras model to be used for predicting text regions",
           "default": "",
           "cacheable": true
         },
-        "textregions_shaping": {
+        "region_shaping": {
           "type": "string",
           "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
           "default": "split",
@@ -208,33 +169,19 @@
             "split"
           ]
         },
-        "textlines_model": {
+        "line_model": {
           "type": "string",
           "description": "Path to Keras model to be used for predicting text lines",
           "required": true,
           "cacheable": true
         },
-        "textlines_shaping": {
+        "line_shaping": {
           "type": "string",
           "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
           "default": "split",
           "enum": [
             "resize",
             "split"
-          ]
-        },
-        "caching": {
-          "type": "boolean",
-          "description": "Enables caching of prediction images from the workspace",
-          "default": true
-        },
-        "operation_level": {
-          "type": "string",
-          "description": "PAGE-XML hierarchy level to operate on",
-          "default": "page",
-          "enum": [
-            "page",
-            "region"
           ]
         }
       }
