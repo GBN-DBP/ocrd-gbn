@@ -121,15 +121,18 @@ class Contour:
         # Get contours and their respective hierarchy information:
         contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-        # Remove redundant axis 0:
-        hierarchy = hierarchy.reshape(hierarchy.shape[1], hierarchy.shape[2])
+        if contours: 
+            # Remove redundant axis 0:
+            hierarchy = hierarchy.reshape(hierarchy.shape[1], hierarchy.shape[2])
 
-        instances = []
-        for cnt, h in zip(contours, hierarchy):
-            # Wrap contour and hierarchy info in Contour object::
-            instances.append(Contour(cnt, h))
+            instances = []
+            for cnt, h in zip(contours, hierarchy):
+                # Wrap contour and hierarchy info in Contour object::
+                instances.append(Contour(cnt, h))
 
-        return instances
+            return instances
+        else:
+            return []
 
     def is_child(self):
         '''
