@@ -205,7 +205,7 @@ class Prediction:
         cropped = self.img[polygon.bbox.y0:polygon.bbox.y1, polygon.bbox.x0:polygon.bbox.x1]
 
         # Mask polygon by setting everything outside to background:
-        cropped[not polygon.to_mask()] = 0
+        cropped[polygon.to_mask() == False] = 0
 
         return Prediction(cropped)
 
