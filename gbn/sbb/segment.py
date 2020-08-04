@@ -60,7 +60,7 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
             region_contours = list(filter(lambda cnt: cnt.polygon.is_valid(), region_contours))
 
             # Get TextLine prediction for page:
-            line_prediction_page = line_model.predict(page_image)
+            line_prediction_page = line_model.predict(page_image_cv2)
 
             # Add metadata about TextRegions:
             for region_idx, region_cnt in enumerate(region_contours):
