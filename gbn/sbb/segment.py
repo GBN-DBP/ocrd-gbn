@@ -45,10 +45,10 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
             )
 
             # Convert PIL to cv2 (RGB):
-            page_image, _ = pil_to_cv2_rgb(page_image)
+            page_image_cv2, _ = pil_to_cv2_rgb(page_image)
 
             # Get TextRegion prediction for page:
-            region_prediction = region_model.predict(page_image)
+            region_prediction = region_model.predict(page_image_cv2)
 
             # Find contours of prediction:
             region_contours = Contour.from_image(region_prediction.img)
