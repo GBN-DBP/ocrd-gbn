@@ -1,5 +1,5 @@
 {
-  "version": "0.0.1",
+  "version": "1.0.0",
   "git_url": "https://github.com/sulzbals/gbn",
   "tools": {
     "ocrd-gbn-sbb-predict": {
@@ -7,7 +7,7 @@
       "categories": [
         "Layout analysis"
       ],
-      "description": "Classifies pixels of input images given a binary (two classes) model and outputs the labels given to each of them as a binary image",
+      "description": "Classifies pixels of input images given a binary (two classes) model and store the prediction as the specified PAGE-XML content type",
       "steps": [
         "layout/analysis"
       ],
@@ -57,13 +57,48 @@
         }
       }
     },
+    "ocrd-gbn-sbb-crop": {
+      "executable": "ocrd-gbn-sbb-crop",
+      "categories": [
+        "Image preprocessing",
+        "Layout analysis"
+      ],
+      "description": "Crops the input page images by predicting the actual page surface and setting the PAGE-XML Border accordingly",
+      "steps": [
+        "preprocessing/optimization/cropping",
+        "layout/analysis"
+      ],
+      "input_file_grp": [
+        "OCR-D-IMG"
+      ],
+      "output_file_grp": [
+        "OCR-D-CROP"
+      ],
+      "parameters": {
+        "model": {
+          "type": "string",
+          "description": "Path to Keras model to be used",
+          "required": true,
+          "cacheable": true
+        },
+        "shaping": {
+          "type": "string",
+          "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
+          "default": "resize",
+          "enum": [
+            "resize",
+            "split"
+          ]
+        }
+      }
+    },
     "ocrd-gbn-sbb-binarize": {
       "executable": "ocrd-gbn-sbb-binarize",
       "categories": [
         "Image preprocessing",
         "Layout analysis"
       ],
-      "description": "Binarizes the input images by predicting the foreground pixels",
+      "description": "Binarizes the input page images by predicting their foreground pixels and saving it as a PAGE-XML AlternativeImage",
       "steps": [
         "preprocessing/optimization/binarization",
         "layout/analysis"
@@ -102,47 +137,12 @@
         }
       }
     },
-    "ocrd-gbn-sbb-crop": {
-      "executable": "ocrd-gbn-sbb-crop",
-      "categories": [
-        "Image preprocessing",
-        "Layout analysis"
-      ],
-      "description": "Crops the input images (must have been binarized) by predicting the actual page surfaces and setting the out-of-page pixels to background (masking them off)",
-      "steps": [
-        "preprocessing/optimization/cropping",
-        "layout/analysis"
-      ],
-      "input_file_grp": [
-        "OCR-D-BIN"
-      ],
-      "output_file_grp": [
-        "OCR-D-CROP"
-      ],
-      "parameters": {
-        "model": {
-          "type": "string",
-          "description": "Path to Keras model to be used",
-          "required": true,
-          "cacheable": true
-        },
-        "shaping": {
-          "type": "string",
-          "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
-          "default": "resize",
-          "enum": [
-            "resize",
-            "split"
-          ]
-        }
-      }
-    },
     "ocrd-gbn-sbb-segment": {
       "executable": "ocrd-gbn-sbb-segment",
       "categories": [
         "Layout analysis"
       ],
-      "description": "Segments images by predicting the text regions and lines of the pages (page-level) or by predicting the text lines of the regions (region-level)",
+      "description": "Segments the input page images by predicting the text regions and lines and setting the PAGE-XML TextRegion and TextLine accordingly",
       "steps": [
         "layout/segmentation/region",
         "layout/segmentation/line"
