@@ -88,7 +88,7 @@ class OcrdGbnSbbCrop(OcrdGbnSbbPredict):
             self.workspace.add_file(
                  ID=self.page_file_id,
                  file_grp=self.page_grp,
-                 pageId=self.page_id,
+                 pageId=page_id,
                  mimetype=MIMETYPE_PAGE,
                  local_filename=join(self.output_file_grp, self.page_file_id)+".xml",
                  content=to_xml(pcgts)
