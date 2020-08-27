@@ -10,6 +10,8 @@ Table of contents
    * [German-Brazilian Newspapers (gbn)](#german-brazilian-newspapers-(gbn))
    * [Table of contents](#table-of-contents)
    * [About](#about)
+   * [Installation](#installation)
+   * [Usage](#usage)
    * [Tools (gbn.sbb)](#tools-(gbn.sbb))
       * [ocrd-gbn-sbb-predict](#ocrd-gbn-sbb-predict)
       * [ocrd-gbn-sbb-crop](#ocrd-gbn-sbb-crop)
@@ -30,6 +32,18 @@ Although there is a considerable amount of digitized brazilian-published german-
    * Poor scanning quality (e.g. lighting contrast)
 
 In order to achieve better [full-text recognition](https://ocr-d.de/en/about) results on the target documents, this project relies on two building blocks: The [German-Brazilian Newspapers dataset](https://web.inf.ufpr.br/vri/databases/gbn/) and the [ocrd-sbb-textline-detector tool](https://github.com/qurator-spk/sbb_textline_detection). The first as a role-model for pioneering on layout analysis of german-brazilian documents (and also as a source of testing data) and the latter as a reference implementation of a robust layout analysis workflow for german-language documents. This project itself was forked from [ocrd-sbb-textline-detector](https://github.com/qurator-spk/sbb_textline_detection), aiming at replicating the original tool's functionality into several smaller modules and extending it for more powerful workflows.
+
+Installation
+============
+
+```
+pip3 install git+https://github.com/sulzbals/gbn.git
+```
+
+Usage
+=====
+
+Refer to the [OCR-D CLI documentation](https://ocr-d.de/en/spec/cli) for instructions on running OCR-D tools.
 
 Tools (gbn.sbb)
 ===============
