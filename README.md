@@ -19,7 +19,7 @@ Table of contents
       * [ocrd-gbn-sbb-segment](#ocrd-gbn-sbb-segment)
    * [Library (gbn.lib)](#library-(gbn.lib))
    * [Models](#models)
-   * [Recommended Workflow](#recommended-workflow)
+   * [Example Workflow](#example-workflow)
 <!--te-->
 
 About
@@ -270,15 +270,12 @@ Currently the models being used are the ones provided by the [qurator team](http
 
 There are plans for extending the [GBN dataset](https://web.inf.ufpr.br/vri/databases/gbn/) with more degraded document pages as an attempt to train robust models in the near future.
 
-Recommended Workflow
+Example Workflow
 ====================
-
-The most generic and simple processing step implementations of [ocrd-sbb-textline-detector](https://github.com/qurator-spk/sbb_textline_detection) were not implemented since there are already tools that do effectively the same. The resizing to **2800 pixels** of height is performed through an [imagemagick wrapper for OCR-D (ocrd-im6convert)](https://github.com/OCR-D/ocrd_im6convert) and the deskewing through an [ocropy wrapper (ocrd-cis-ocropy)](https://github.com/cisocrgroup/ocrd_cis).
 
 | Step  | Processor                 | Parameters |
 | ----- | ------------------------- | ---------- |
 | 1     | ocrd-im6convert           | { "output-format": "image/png", "output-options": "-geometry x2800" } |
 | 2     | ocrd-gbn-sbb-crop         | { "model": "/path/to/model_page_mixed_best.h5", "shaping": "resize" }	|
 | 3     | ocrd-gbn-sbb-binarize     | { "model": "/path/to/model_bin4.h5", "shaping": "split", "operation_level": "page" } |
-| 4     | ocrd-cis-ocropy-deskew    | { "level-of-operation": "page" } |
-| 5     | ocrd-gbn-sbb-segment      | { "region_model": "/path/to/model_strukturerkennung.h5", "region_shaping": "split", "line_model": "/path/to/model_textline_new.h5", "line_shaping": "split" }	|
+| 4     | ocrd-gbn-sbb-segment      | { "region_model": "/path/to/model_strukturerkennung.h5", "region_shaping": "split", "line_model": "/path/to/model_textline_new.h5", "line_shaping": "split" }	|
