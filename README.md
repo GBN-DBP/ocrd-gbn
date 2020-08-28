@@ -37,7 +37,7 @@ Installation
 ============
 
 ```
-pip3 install git+https://github.com/sulzbals/gbn.git
+pip3 install ocrd-gbn
 ```
 
 Usage
