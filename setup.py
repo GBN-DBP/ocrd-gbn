@@ -5,14 +5,14 @@ with open('requirements.txt') as fp:
     install_requires = fp.read()
 
 setup(
-    name="gbn",
+    name="ocrd-gbn",
     version="1.0.0",
     author="Lucas Sulzbach",
     author_email="lucas@sulzbach.org",
     description="Collection of OCR-D compliant tools for layout analysis and segmentation of historical german-language documents published in Brazil",
     long_description=open("README.md", "r", encoding='utf-8').read(),
     long_description_content_type="text/markdown",
-    keywords='gbn',
+    keywords=['OCR', 'OCR-D'],
     license='Apache',
     url="https://github.com/sulzbals/gbn",
     packages=find_packages(exclude=["*.tests", "*.tests.*",
