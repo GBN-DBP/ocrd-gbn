@@ -38,6 +38,9 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
             pcgts = page_from_file(self.workspace.download_file(self.input_file))
             page = pcgts.get_Page()
 
+            # Get Border from PAGE:
+            border = page.get_Border()
+
             # Get image from PAGE:
             page_image, page_xywh, _ = self.workspace.image_from_page(
                 page,
@@ -49,6 +52,13 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
 
             # Get TextRegion prediction for page:
             region_prediction = region_model.predict(page_image_cv2)
+
+            if border is not None:
+                # Get Border polygon:
+                border_polygon = Polygon(border.get_Coords().get_points())
+
+                # Get TextRegion prediction inside the Border:
+                region_prediction = region_prediction.crop(border_polygon)
 
             # Find contours of prediction:
             region_contours = Contour.from_image(region_prediction.img)
