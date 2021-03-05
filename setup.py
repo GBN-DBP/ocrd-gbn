@@ -22,19 +22,19 @@ setup(
         '': ['*.json'],
     },
     entry_points={
-      'console_scripts': [
-        "ocrd-gbn-sbb-predict=gbn:ocrd_gbn_sbb_predict",
-        "ocrd-gbn-sbb-crop=gbn:ocrd_gbn_sbb_crop",
-        "ocrd-gbn-sbb-binarize=gbn:ocrd_gbn_sbb_binarize",
-        "ocrd-gbn-sbb-segment=gbn:ocrd_gbn_sbb_segment",
-      ]
+        'console_scripts': [
+            "ocrd-gbn-sbb-predict=gbn:ocrd_gbn_sbb_predict",
+            "ocrd-gbn-sbb-crop=gbn:ocrd_gbn_sbb_crop",
+            "ocrd-gbn-sbb-binarize=gbn:ocrd_gbn_sbb_binarize",
+            "ocrd-gbn-sbb-segment=gbn:ocrd_gbn_sbb_segment",
+        ]
     },
     python_requires='>=3.6.0',
     tests_require=['pytest'],
     classifiers=[
-          'Intended Audience :: Science/Research',
-          'License :: OSI Approved :: Apache Software License',
-          'Programming Language :: Python :: 3',
-          'Topic :: Scientific/Engineering :: Artificial Intelligence',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: Apache Software License',
+        'Programming Language :: Python :: 3',
+        'Topic :: Scientific/Engineering :: Artificial Intelligence',
     ],
 )

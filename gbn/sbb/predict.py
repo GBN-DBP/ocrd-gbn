@@ -11,6 +11,7 @@ from ocrd_utils import concat_padded, coordinates_for_segment, getLogger, MIMETY
 
 from os.path import realpath, join
 
+
 class OcrdGbnSbbPredict(Processor):
     tool = "ocrd-gbn-sbb-predict"
     log = getLogger("processor.OcrdGbnSbbPredict")
@@ -71,7 +72,8 @@ class OcrdGbnSbbPredict(Processor):
 
     def _set_Border(self, page, page_image, page_xywh, border_polygon):
         # Convert to absolute (page) coordinates:
-        border_polygon = coordinates_for_segment(border_polygon, page_image, page_xywh)
+        border_polygon = coordinates_for_segment(
+            border_polygon, page_image, page_xywh)
 
         # Save border:
         page.set_Border(
@@ -84,7 +86,8 @@ class OcrdGbnSbbPredict(Processor):
 
     def _add_TextRegion(self, page, page_image, page_xywh, page_id, region_polygon, region_id):
         # Convert to absolute (page) coordinates:
-        region_polygon = coordinates_for_segment(region_polygon, page_image, page_xywh)
+        region_polygon = coordinates_for_segment(
+            region_polygon, page_image, page_xywh)
 
         # Save text region:
         page.add_TextRegion(
@@ -98,7 +101,8 @@ class OcrdGbnSbbPredict(Processor):
 
     def _add_ImageRegion(self, page, page_image, page_xywh, page_id, region_polygon, region_id):
         # Convert to absolute (page) coordinates:
-        region_polygon = coordinates_for_segment(region_polygon, page_image, page_xywh)
+        region_polygon = coordinates_for_segment(
+            region_polygon, page_image, page_xywh)
 
         # Save image region:
         page.add_ImageRegion(
@@ -112,7 +116,8 @@ class OcrdGbnSbbPredict(Processor):
 
     def _add_GraphicRegion(self, page, page_image, page_xywh, page_id, region_polygon, region_id):
         # Convert to absolute (page) coordinates:
-        region_polygon = coordinates_for_segment(region_polygon, page_image, page_xywh)
+        region_polygon = coordinates_for_segment(
+            region_polygon, page_image, page_xywh)
 
         # Save graphic region:
         page.add_GraphicRegion(
@@ -126,7 +131,8 @@ class OcrdGbnSbbPredict(Processor):
 
     def _add_SeparatorRegion(self, page, page_image, page_xywh, page_id, region_polygon, region_id):
         # Convert to absolute (page) coordinates:
-        region_polygon = coordinates_for_segment(region_polygon, page_image, page_xywh)
+        region_polygon = coordinates_for_segment(
+            region_polygon, page_image, page_xywh)
 
         # Save separator region:
         page.add_SeparatorRegion(
@@ -140,7 +146,8 @@ class OcrdGbnSbbPredict(Processor):
 
     def _add_TextLine(self, page_id, region, region_image, region_xywh, region_id, line_polygon, line_id):
         # Convert to absolute (page) coordinates:
-        line_polygon = coordinates_for_segment(line_polygon, region_image, region_xywh)
+        line_polygon = coordinates_for_segment(
+            line_polygon, region_image, region_xywh)
 
         # Save text line:
         region.add_TextLine(
@@ -160,11 +167,13 @@ class OcrdGbnSbbPredict(Processor):
         model = Model(self.parameter['model'], self.parameter['shaping'])
 
         for (self.page_num, self.input_file) in enumerate(self.input_files):
-            self.log.info("Processing input file: %i / %s", self.page_num, self.input_file)
+            self.log.info("Processing input file: %i / %s",
+                          self.page_num, self.input_file)
 
             # Create a new PAGE file from the input file:
             page_id = self.input_file.pageId or self.input_file.ID
-            pcgts = page_from_file(self.workspace.download_file(self.input_file))
+            pcgts = page_from_file(
+                self.workspace.download_file(self.input_file))
             page = pcgts.get_Page()
 
             if self.parameter['operation_level'] == "page":
@@ -182,19 +191,23 @@ class OcrdGbnSbbPredict(Processor):
 
                 if self.parameter['type'] == "AlternativeImageType":
                     # Convert to cv2 binary image then to PIL:
-                    page_prediction = cv2_to_pil_gray(page_prediction.to_binary_image(), alpha=alpha)
+                    page_prediction = cv2_to_pil_gray(
+                        page_prediction.to_binary_image(), alpha=alpha)
 
-                    self._add_AlternativeImage(page_id, page, page_image, page_xywh, "", "")
+                    self._add_AlternativeImage(
+                        page_id, page, page_image, page_xywh, "", "")
 
                 elif self.parameter['type'] == "BorderType":
                     # Find contours of prediction:
                     contours = Contour.from_image(page_prediction.img)
 
                     # Filter out child contours:
-                    contours = list(filter(lambda cnt: not cnt.is_child(), contours))
+                    contours = list(
+                        filter(lambda cnt: not cnt.is_child(), contours))
 
                     # Filter out invalid polygons:
-                    contours = list(filter(lambda cnt: cnt.polygon.is_valid(), contours))
+                    contours = list(
+                        filter(lambda cnt: cnt.polygon.is_valid(), contours))
 
                     # Sort contours by area:
                     contours = sorted(contours, key=lambda cnt: cnt.area)
@@ -202,17 +215,20 @@ class OcrdGbnSbbPredict(Processor):
                     # Get polygon of largest contour:
                     border_polygon = contours[-1].polygon
 
-                    self._set_Border(page, page_image, page_xywh, border_polygon)
+                    self._set_Border(page, page_image,
+                                     page_xywh, border_polygon)
 
                 elif self.parameter['type'] == "TextRegionType":
                     # Find contours of prediction:
                     contours = Contour.from_image(page_prediction.img)
 
                     # Filter out child contours:
-                    contours = list(filter(lambda cnt: not cnt.is_child(), contours))
+                    contours = list(
+                        filter(lambda cnt: not cnt.is_child(), contours))
 
                     # Filter out invalid polygons:
-                    contours = list(filter(lambda cnt: cnt.polygon.is_valid(), contours))
+                    contours = list(
+                        filter(lambda cnt: cnt.polygon.is_valid(), contours))
 
                     for idx, cnt in enumerate(contours):
                         region_id = "_region%04d" % idx
@@ -259,19 +275,23 @@ class OcrdGbnSbbPredict(Processor):
 
                     if self.parameter['type'] == "AlternativeImageType":
                         # Convert to cv2 binary image then to PIL:
-                        region_prediction = cv2_to_pil_gray(region_prediction.to_binary_image(), alpha=alpha)
+                        region_prediction = cv2_to_pil_gray(
+                            region_prediction.to_binary_image(), alpha=alpha)
 
-                        self._add_AlternativeImage(page_id, region, region_image, region_xywh, region_id, "")
+                        self._add_AlternativeImage(
+                            page_id, region, region_image, region_xywh, region_id, "")
 
                     elif self.parameter['type'] == "TextLineType":
                         # Find contours of prediction:
                         contours = Contour.from_image(region_prediction.img)
 
                         # Filter out child contours:
-                        contours = list(filter(lambda cnt: not cnt.is_child(), contours))
+                        contours = list(
+                            filter(lambda cnt: not cnt.is_child(), contours))
 
                         # Filter out invalid polygons:
-                        contours = list(filter(lambda cnt: cnt.polygon.is_valid(), contours))
+                        contours = list(
+                            filter(lambda cnt: cnt.polygon.is_valid(), contours))
 
                         for idx, cnt in enumerate(contours):
                             line_id = "_line%04d" % idx
@@ -324,9 +344,11 @@ class OcrdGbnSbbPredict(Processor):
 
                         if self.parameter['type'] == "AlternativeImageType":
                             # Convert to cv2 binary image then to PIL:
-                            line_prediction = cv2_to_pil_gray(line_prediction.to_binary_image(), alpha=alpha)
+                            line_prediction = cv2_to_pil_gray(
+                                line_prediction.to_binary_image(), alpha=alpha)
 
-                            self._add_AlternativeImage(page_id, line, line_image, line_xywh, region_id+line_id, "")
+                            self._add_AlternativeImage(
+                                page_id, line, line_image, line_xywh, region_id+line_id, "")
 
                         else:
                             self.log.error(
@@ -358,10 +380,11 @@ class OcrdGbnSbbPredict(Processor):
 
             # Save XML PAGE:
             self.workspace.add_file(
-                 ID=self.page_file_id,
-                 file_grp=self.page_grp,
-                 pageId=page_id,
-                 mimetype=MIMETYPE_PAGE,
-                 local_filename=join(self.output_file_grp, self.page_file_id)+".xml",
-                 content=to_xml(pcgts)
+                ID=self.page_file_id,
+                file_grp=self.page_grp,
+                pageId=page_id,
+                mimetype=MIMETYPE_PAGE,
+                local_filename=join(self.output_file_grp,
+                                    self.page_file_id)+".xml",
+                content=to_xml(pcgts)
             )

@@ -3,6 +3,7 @@ import cv2
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 
+
 class BoundingBox:
     '''
     Represents the bounding box of a shape in an image.
@@ -49,6 +50,7 @@ class BoundingBox:
 
         return boxes
 
+
 class Polygon:
     '''
     Represents a polygon.
@@ -65,7 +67,8 @@ class Polygon:
         self.bbox = BoundingBox.from_polygon(self)
 
         # Map points to origin (x0 == 0, y0 == 0):
-        self.mapped_points = np.stack((self.points[:, 0] - self.bbox.x0, self.points[:, 1] - self.bbox.y0), axis=1)
+        self.mapped_points = np.stack(
+            (self.points[:, 0] - self.bbox.x0, self.points[:, 1] - self.bbox.y0), axis=1)
 
     def is_valid(self):
         '''
@@ -90,6 +93,7 @@ class Polygon:
 
         return mask
 
+
 class Contour:
     '''
     Wrapper of cv2 contour (shape of an image).
@@ -110,7 +114,8 @@ class Contour:
         self.next, self.previous, self.first_child, self.parent = hierarchy
 
         # Remove redundant axis 1 and wrap contour in Polygon object:
-        self.polygon = Polygon(self.contour.reshape(self.contour.shape[0], self.contour.shape[2]))
+        self.polygon = Polygon(self.contour.reshape(
+            self.contour.shape[0], self.contour.shape[2]))
 
     @classmethod
     def from_image(self, image, color):
@@ -124,11 +129,13 @@ class Contour:
         cnt_img[mask == True] = color
 
         # Get contours and their respective hierarchy information:
-        contours, hierarchy = cv2.findContours(cnt_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours, hierarchy = cv2.findContours(
+            cnt_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-        if contours: 
+        if contours:
             # Remove redundant axis 0:
-            hierarchy = hierarchy.reshape(hierarchy.shape[1], hierarchy.shape[2])
+            hierarchy = hierarchy.reshape(
+                hierarchy.shape[1], hierarchy.shape[2])
 
             instances = []
             for cnt, h in zip(contours, hierarchy):
@@ -145,6 +152,7 @@ class Contour:
         '''
 
         return self.parent != -1
+
 
 class Projection:
     '''

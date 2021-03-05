@@ -6,6 +6,7 @@ import keras.models
 
 from gbn.lib.struct import Contour, Polygon
 
+
 class Model:
     '''
     Abstraction layer for a binary deep learning Keras model.
@@ -30,8 +31,10 @@ class Model:
         self.model = keras.models.load_model(model_path, compile=False)
 
         # Get input and output shapes of model, replacing None by 1:
-        self.input_shape = (1, self.model.input_shape[1], self.model.input_shape[2], self.model.input_shape[3])
-        self.output_shape = (1, self.model.output_shape[1], self.model.output_shape[2], self.model.output_shape[3])
+        self.input_shape = (
+            1, self.model.input_shape[1], self.model.input_shape[2], self.model.input_shape[3])
+        self.output_shape = (
+            1, self.model.output_shape[1], self.model.output_shape[2], self.model.output_shape[3])
 
         # Set Model.predict method to selected algorithm:
         if shaping == "resize":
@@ -66,19 +69,19 @@ class Model:
         prediction = prediction.reshape(self.output_shape[1:])
 
         # If classification is not binary:
-        #if prediction.shape[2] > 2:
-            # Get classes 0 (background) and 1 (interest/foreground):
-            #bg = prediction[:, :, 0]
-            #fg = prediction[:, :, 1]
+        # if prediction.shape[2] > 2:
+        # Get classes 0 (background) and 1 (interest/foreground):
+        #bg = prediction[:, :, 0]
+        #fg = prediction[:, :, 1]
 
-            # Group all other classes:
-            #other = np.sum(prediction[:, :, 2:], axis=2)
+        # Group all other classes:
+        #other = np.sum(prediction[:, :, 2:], axis=2)
 
-            # Since all other classes are ignored, consider them background:
-            #bg = np.add(bg, other)
+        # Since all other classes are ignored, consider them background:
+        #bg = np.add(bg, other)
 
-            # Reshape prediction as binary:
-            #prediction = np.stack((bg, fg), axis=2)
+        # Reshape prediction as binary:
+        #prediction = np.stack((bg, fg), axis=2)
 
         # Get labels by converting from likeliness of each class to label of most likely class:
         prediction = np.argmax(prediction, axis=2).astype(np.uint8)
@@ -100,13 +103,15 @@ class Model:
         image = image / 255.0
 
         # Resize image to input shape:
-        image = cv2.resize(image, (self.input_shape[2], self.input_shape[1]), interpolation=cv2.INTER_NEAREST)
+        image = cv2.resize(
+            image, (self.input_shape[2], self.input_shape[1]), interpolation=cv2.INTER_NEAREST)
 
         # Perform prediction:
         prediction = self.perform_prediction(image)
 
         # Resize prediction to original image shape:
-        prediction = cv2.resize(prediction, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_NEAREST)
+        prediction = cv2.resize(
+            prediction, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_NEAREST)
 
         # Wrap prediction in a Prediction object:
         prediction = Prediction(prediction)
@@ -125,14 +130,15 @@ class Model:
         patch_shape = (self.input_shape[1], self.input_shape[2])
 
         # Get rest of division of image shape by patch shape (remaining dimensions after splitting into patches):
-        rest = (image_shape[0] % patch_shape[0], image_shape[1] % patch_shape[1])
+        rest = (image_shape[0] % patch_shape[0],
+                image_shape[1] % patch_shape[1])
 
         # Get padding for splitting image into equal-sized patches:
         padding = (patch_shape[0] - rest[0], patch_shape[1] - rest[1])
 
         # Split padding equally around the image:
         padding_top = math.floor(padding[0] / 2)
-        padding_bottom = math.ceil(padding[0]/ 2)
+        padding_bottom = math.ceil(padding[0] / 2)
         padding_left = math.floor(padding[1] / 2)
         padding_right = math.ceil(padding[1] / 2)
 
@@ -177,12 +183,14 @@ class Model:
                 canvas[yd:yd+patch_shape[0], xd:xd+patch_shape[1]] = prediction
 
         # Remove padding from canvas of predictions:
-        prediction = canvas[padding_top+1:padding_top+1+image_shape[0], padding_left+1:padding_left+1+image_shape[1]]
+        prediction = canvas[padding_top+1:padding_top+1 +
+                            image_shape[0], padding_left+1:padding_left+1+image_shape[1]]
 
         # Wrap prediction in a Prediction object:
         prediction = Prediction(prediction)
 
         return prediction
+
 
 class Prediction:
     '''
@@ -202,7 +210,8 @@ class Prediction:
         '''
 
         # Crop the bounding rectangle of the polygon:
-        cropped = self.img[polygon.bbox.y0:polygon.bbox.y1, polygon.bbox.x0:polygon.bbox.x1]
+        cropped = self.img[polygon.bbox.y0:polygon.bbox.y1,
+                           polygon.bbox.x0:polygon.bbox.x1]
 
         # Mask polygon by setting everything outside to background:
         cropped[polygon.to_mask() == False] = 0

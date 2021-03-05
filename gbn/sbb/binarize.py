@@ -11,6 +11,7 @@ from ocrd_utils import concat_padded, coordinates_for_segment, getLogger, MIMETY
 
 from os.path import realpath, join
 
+
 class OcrdGbnSbbBinarize(OcrdGbnSbbPredict):
     tool = "ocrd-gbn-sbb-binarize"
     log = getLogger("processor.OcrdGbnSbbBinarize")
@@ -25,11 +26,13 @@ class OcrdGbnSbbBinarize(OcrdGbnSbbPredict):
         model = Model(self.parameter['model'], self.parameter['shaping'])
 
         for (self.page_num, self.input_file) in enumerate(self.input_files):
-            self.log.info("Processing input file: %i / %s", self.page_num, self.input_file)
+            self.log.info("Processing input file: %i / %s",
+                          self.page_num, self.input_file)
 
             # Create a new PAGE file from the input file:
             page_id = self.input_file.pageId or self.input_file.ID
-            pcgts = page_from_file(self.workspace.download_file(self.input_file))
+            pcgts = page_from_file(
+                self.workspace.download_file(self.input_file))
             page = pcgts.get_Page()
 
             if self.parameter['operation_level'] == "page":
@@ -47,7 +50,8 @@ class OcrdGbnSbbBinarize(OcrdGbnSbbPredict):
                 page_prediction = model.predict(page_image)
 
                 # Convert to cv2 binary image then to PIL:
-                page_prediction = cv2_to_pil_gray(page_prediction.to_binary_image(), alpha=alpha)
+                page_prediction = cv2_to_pil_gray(
+                    page_prediction.to_binary_image(), alpha=alpha)
 
                 self._add_AlternativeImage(
                     page_id,
@@ -85,7 +89,8 @@ class OcrdGbnSbbBinarize(OcrdGbnSbbPredict):
                     region_prediction = model.predict(region_image)
 
                     # Convert to cv2 binary image then to PIL:
-                    region_prediction = cv2_to_pil_gray(region_prediction.to_binary_image(), alpha=alpha)
+                    region_prediction = cv2_to_pil_gray(
+                        region_prediction.to_binary_image(), alpha=alpha)
 
                     self._add_AlternativeImage(
                         page_id,
@@ -128,7 +133,8 @@ class OcrdGbnSbbBinarize(OcrdGbnSbbPredict):
                         line_prediction = model.predict(line_image)
 
                         # Convert to cv2 binary image then to PIL:
-                        line_prediction = cv2_to_pil_gray(line_prediction.to_binary_image(), alpha=alpha)
+                        line_prediction = cv2_to_pil_gray(
+                            line_prediction.to_binary_image(), alpha=alpha)
 
                         self._add_AlternativeImage(
                             page_id,
@@ -163,10 +169,11 @@ class OcrdGbnSbbBinarize(OcrdGbnSbbPredict):
 
             # Save XML PAGE:
             self.workspace.add_file(
-                 ID=self.page_file_id,
-                 file_grp=self.page_grp,
-                 pageId=page_id,
-                 mimetype=MIMETYPE_PAGE,
-                 local_filename=join(self.output_file_grp, self.page_file_id)+".xml",
-                 content=to_xml(pcgts)
+                ID=self.page_file_id,
+                file_grp=self.page_grp,
+                pageId=page_id,
+                mimetype=MIMETYPE_PAGE,
+                local_filename=join(self.output_file_grp,
+                                    self.page_file_id)+".xml",
+                content=to_xml(pcgts)
             )

@@ -11,6 +11,7 @@ from ocrd_utils import concat_padded, coordinates_for_segment, getLogger, MIMETY
 
 from os.path import realpath, join
 
+
 class OcrdGbnSbbCrop(OcrdGbnSbbPredict):
     tool = "ocrd-gbn-sbb-crop"
     log = getLogger("processor.OcrdGbnSbbCrop")
@@ -25,11 +26,13 @@ class OcrdGbnSbbCrop(OcrdGbnSbbPredict):
         model = Model(self.parameter['model'], self.parameter['shaping'])
 
         for (self.page_num, self.input_file) in enumerate(self.input_files):
-            self.log.info("Processing input file: %i / %s", self.page_num, self.input_file)
+            self.log.info("Processing input file: %i / %s",
+                          self.page_num, self.input_file)
 
             # Create a new PAGE file from the input file:
             page_id = self.input_file.pageId or self.input_file.ID
-            pcgts = page_from_file(self.workspace.download_file(self.input_file))
+            pcgts = page_from_file(
+                self.workspace.download_file(self.input_file))
             page = pcgts.get_Page()
 
             # Get image from PAGE:
@@ -52,7 +55,8 @@ class OcrdGbnSbbCrop(OcrdGbnSbbPredict):
             contours = list(filter(lambda cnt: not cnt.is_child(), contours))
 
             # Filter out invalid polygons:
-            contours = list(filter(lambda cnt: cnt.polygon.is_valid(), contours))
+            contours = list(
+                filter(lambda cnt: cnt.polygon.is_valid(), contours))
 
             # Sort contours by area:
             contours = sorted(contours, key=lambda cnt: cnt.area)
@@ -60,7 +64,8 @@ class OcrdGbnSbbCrop(OcrdGbnSbbPredict):
             # Get polygon of largest contour:
             border_polygon = contours[-1].polygon
 
-            self._set_Border(page, page_image, page_xywh, border_polygon.points)
+            self._set_Border(page, page_image, page_xywh,
+                             border_polygon.points)
 
             # Add metadata about this operation:
             metadata = pcgts.get_Metadata()
@@ -86,10 +91,11 @@ class OcrdGbnSbbCrop(OcrdGbnSbbPredict):
 
             # Save XML PAGE:
             self.workspace.add_file(
-                 ID=self.page_file_id,
-                 file_grp=self.page_grp,
-                 pageId=page_id,
-                 mimetype=MIMETYPE_PAGE,
-                 local_filename=join(self.output_file_grp, self.page_file_id)+".xml",
-                 content=to_xml(pcgts)
+                ID=self.page_file_id,
+                file_grp=self.page_grp,
+                pageId=page_id,
+                mimetype=MIMETYPE_PAGE,
+                local_filename=join(self.output_file_grp,
+                                    self.page_file_id)+".xml",
+                content=to_xml(pcgts)
             )

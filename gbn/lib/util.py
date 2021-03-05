@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import PIL.Image
 
+
 def pil_to_cv2_rgb(image, bg_color=255):
     '''
     Converts PIL RGB image to cv2 (OpenCV) BGR image (Numpy array)
@@ -22,9 +23,11 @@ def pil_to_cv2_rgb(image, bg_color=255):
         alpha = None
 
     # Convert PIL image array to RGB then to Numpy array then to BGR (for OpenCV):
-    image = cv2.cvtColor(np.array(image.convert('RGB'), dtype=np.uint8), cv2.COLOR_RGB2BGR)
+    image = cv2.cvtColor(np.array(image.convert(
+        'RGB'), dtype=np.uint8), cv2.COLOR_RGB2BGR)
 
     return image, alpha
+
 
 def cv2_to_pil_rgb(image, alpha=None):
     '''
@@ -38,6 +41,7 @@ def cv2_to_pil_rgb(image, alpha=None):
         image.putalpha(alpha)
 
     return image
+
 
 def pil_to_cv2_gray(image, bg_color=255):
     '''
@@ -62,6 +66,7 @@ def pil_to_cv2_gray(image, bg_color=255):
     image = np.array(image.convert('L'), dtype=np.uint8)
 
     return image, alpha
+
 
 def cv2_to_pil_gray(image, alpha=None):
     '''

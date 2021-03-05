@@ -11,6 +11,7 @@ from ocrd_utils import concat_padded, coordinates_for_segment, getLogger, MIMETY
 
 from os.path import realpath, join
 
+
 class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
     tool = "ocrd-gbn-sbb-segment"
     log = getLogger("processor.OcrdGbnSbbSegment")
@@ -25,11 +26,13 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
         model = Model(self.parameter['model'], self.parameter['shaping'])
 
         for (self.page_num, self.input_file) in enumerate(self.input_files):
-            self.log.info("Processing input file: %i / %s", self.page_num, self.input_file)
+            self.log.info("Processing input file: %i / %s",
+                          self.page_num, self.input_file)
 
             # Create a new PAGE file from the input file:
             page_id = self.input_file.pageId or self.input_file.ID
-            pcgts = page_from_file(self.workspace.download_file(self.input_file))
+            pcgts = page_from_file(
+                self.workspace.download_file(self.input_file))
             page = pcgts.get_Page()
 
             # Get image from PAGE:
@@ -52,7 +55,8 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
 
             if print_space is not None:
                 # Get PrintSpace polygon:
-                print_space_polygon = Polygon(print_space.get_Coords().get_points())
+                print_space_polygon = Polygon(
+                    print_space.get_Coords().get_points())
 
                 # Get Region prediction inside the PrintSpace:
                 region_prediction = region_prediction.crop(print_space_polygon)
@@ -68,10 +72,12 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
             text_region_contours = Contour.from_image(region_prediction.img, 1)
 
             # Filter out child contours:
-            text_region_contours = list(filter(lambda cnt: not cnt.is_child(), text_region_contours))
+            text_region_contours = list(
+                filter(lambda cnt: not cnt.is_child(), text_region_contours))
 
             # Filter out invalid polygons:
-            text_region_contours = list(filter(lambda cnt: cnt.polygon.is_valid(), text_region_contours))
+            text_region_contours = list(
+                filter(lambda cnt: cnt.polygon.is_valid(), text_region_contours))
 
             # Add metadata about TextRegions:
             for region_idx, region_cnt in enumerate(text_region_contours):
@@ -87,13 +93,16 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
                 )
 
             # Find ImageRegion contours of prediction:
-            image_region_contours = Contour.from_image(region_prediction.img, 2)
+            image_region_contours = Contour.from_image(
+                region_prediction.img, 2)
 
             # Filter out child contours:
-            image_region_contours = list(filter(lambda cnt: not cnt.is_child(), image_region_contours))
+            image_region_contours = list(
+                filter(lambda cnt: not cnt.is_child(), image_region_contours))
 
             # Filter out invalid polygons:
-            image_region_contours = list(filter(lambda cnt: cnt.polygon.is_valid(), image_region_contours))
+            image_region_contours = list(
+                filter(lambda cnt: cnt.polygon.is_valid(), image_region_contours))
 
             # Add metadata about ImageRegions:
             for region_idx, region_cnt in enumerate(image_region_contours):
@@ -109,13 +118,16 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
                 )
 
             # Find GraphicRegion contours of prediction:
-            graphic_region_contours = Contour.from_image(region_prediction.img, 3)
+            graphic_region_contours = Contour.from_image(
+                region_prediction.img, 3)
 
             # Filter out child contours:
-            graphic_region_contours = list(filter(lambda cnt: not cnt.is_child(), graphic_region_contours))
+            graphic_region_contours = list(
+                filter(lambda cnt: not cnt.is_child(), graphic_region_contours))
 
             # Filter out invalid polygons:
-            graphic_region_contours = list(filter(lambda cnt: cnt.polygon.is_valid(), graphic_region_contours))
+            graphic_region_contours = list(
+                filter(lambda cnt: cnt.polygon.is_valid(), graphic_region_contours))
 
             # Add metadata about GraphicRegions:
             for region_idx, region_cnt in enumerate(graphic_region_contours):
@@ -131,13 +143,16 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
                 )
 
             # Find SeparatorRegion contours of prediction:
-            separator_region_contours = Contour.from_image(region_prediction.img, 4)
+            separator_region_contours = Contour.from_image(
+                region_prediction.img, 4)
 
             # Filter out child contours:
-            separator_region_contours = list(filter(lambda cnt: not cnt.is_child(), separator_region_contours))
+            separator_region_contours = list(
+                filter(lambda cnt: not cnt.is_child(), separator_region_contours))
 
             # Filter out invalid polygons:
-            separator_region_contours = list(filter(lambda cnt: cnt.polygon.is_valid(), separator_region_contours))
+            separator_region_contours = list(
+                filter(lambda cnt: cnt.polygon.is_valid(), separator_region_contours))
 
             # Add metadata about SeparatorRegions:
             for region_idx, region_cnt in enumerate(separator_region_contours):
@@ -176,10 +191,11 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
 
             # Save XML PAGE:
             self.workspace.add_file(
-                 ID=self.page_file_id,
-                 file_grp=self.page_grp,
-                 pageId=page_id,
-                 mimetype=MIMETYPE_PAGE,
-                 local_filename=join(self.output_file_grp, self.page_file_id)+".xml",
-                 content=to_xml(pcgts)
+                ID=self.page_file_id,
+                file_grp=self.page_grp,
+                pageId=page_id,
+                mimetype=MIMETYPE_PAGE,
+                local_filename=join(self.output_file_grp,
+                                    self.page_file_id)+".xml",
+                content=to_xml(pcgts)
             )
