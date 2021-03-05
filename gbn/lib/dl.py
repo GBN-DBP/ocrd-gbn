@@ -66,25 +66,25 @@ class Model:
         prediction = prediction.reshape(self.output_shape[1:])
 
         # If classification is not binary:
-        if prediction.shape[2] > 2:
+        #if prediction.shape[2] > 2:
             # Get classes 0 (background) and 1 (interest/foreground):
-            bg = prediction[:, :, 0]
-            fg = prediction[:, :, 1]
+            #bg = prediction[:, :, 0]
+            #fg = prediction[:, :, 1]
 
             # Group all other classes:
-            other = np.sum(prediction[:, :, 2:], axis=2)
+            #other = np.sum(prediction[:, :, 2:], axis=2)
 
             # Since all other classes are ignored, consider them background:
-            bg = np.add(bg, other)
+            #bg = np.add(bg, other)
 
             # Reshape prediction as binary:
-            prediction = np.stack((bg, fg), axis=2)
+            #prediction = np.stack((bg, fg), axis=2)
 
         # Get labels by converting from likeliness of each class to label of most likely class:
         prediction = np.argmax(prediction, axis=2).astype(np.uint8)
 
         # Map pixels from [0, 1] (binary) to [0, 255] (grayscale):
-        prediction = prediction * 255
+        #prediction = prediction * 255
 
         return prediction
 

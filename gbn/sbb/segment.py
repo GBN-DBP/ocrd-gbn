@@ -18,17 +18,11 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
     fallback_image_filegrp = "OCR-D-IMG-SEG"
 
     def process(self):
-        # Ensure path to TextRegion model is absolute:
-        self.parameter['region_model'] = realpath(self.parameter['region_model'])
+        # Ensure path to model is absolute:
+        self.parameter['model'] = realpath(self.parameter['model'])
 
-        # Construct Model object for TextRegion prediction:
-        region_model = Model(self.parameter['region_model'], self.parameter['region_shaping'])
-
-        # Ensure path to TextLine model is absolute:
-        self.parameter['line_model'] = realpath(self.parameter['line_model'])
-
-        # Construct Model object for TextLine prediction:
-        line_model = Model(self.parameter['line_model'], self.parameter['line_shaping'])
+        # Construct Model object for prediction:
+        model = Model(self.parameter['model'], self.parameter['shaping'])
 
         for (self.page_num, self.input_file) in enumerate(self.input_files):
             self.log.info("Processing input file: %i / %s", self.page_num, self.input_file)
@@ -37,9 +31,6 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
             page_id = self.input_file.pageId or self.input_file.ID
             pcgts = page_from_file(self.workspace.download_file(self.input_file))
             page = pcgts.get_Page()
-
-            # Get Border from PAGE:
-            border = page.get_Border()
 
             # Get image from PAGE:
             page_image, page_xywh, _ = self.workspace.image_from_page(
@@ -50,31 +41,41 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
             # Convert PIL to cv2 (RGB):
             page_image_cv2, _ = pil_to_cv2_rgb(page_image)
 
-            # Get TextRegion prediction for page:
-            region_prediction = region_model.predict(page_image_cv2)
+            # Get Region prediction for page:
+            region_prediction = model.predict(page_image_cv2)
 
-            if border is not None:
+            # Get Border from PAGE:
+            border = page.get_Border()
+
+            # Get PrintSpace from PAGE:
+            print_space = page.get_PrintSpace()
+
+            if print_space is not None:
+                # Get PrintSpace polygon:
+                print_space_polygon = Polygon(print_space.get_Coords().get_points())
+
+                # Get Region prediction inside the PrintSpace:
+                region_prediction = region_prediction.crop(print_space_polygon)
+
+            elif border is not None:
                 # Get Border polygon:
                 border_polygon = Polygon(border.get_Coords().get_points())
 
-                # Get TextRegion prediction inside the Border:
+                # Get Region prediction inside the Border:
                 region_prediction = region_prediction.crop(border_polygon)
 
-            # Find contours of prediction:
-            region_contours = Contour.from_image(region_prediction.img)
+            # Find TextRegion contours of prediction:
+            text_region_contours = Contour.from_image(region_prediction.img, 1)
 
             # Filter out child contours:
-            region_contours = list(filter(lambda cnt: not cnt.is_child(), region_contours))
+            text_region_contours = list(filter(lambda cnt: not cnt.is_child(), text_region_contours))
 
             # Filter out invalid polygons:
-            region_contours = list(filter(lambda cnt: cnt.polygon.is_valid(), region_contours))
-
-            # Get TextLine prediction for page:
-            line_prediction_page = line_model.predict(page_image_cv2)
+            text_region_contours = list(filter(lambda cnt: cnt.polygon.is_valid(), text_region_contours))
 
             # Add metadata about TextRegions:
-            for region_idx, region_cnt in enumerate(region_contours):
-                region_id = "_region%04d" % region_idx
+            for region_idx, region_cnt in enumerate(text_region_contours):
+                region_id = "_text_region%04d" % region_idx
 
                 self._add_TextRegion(
                     page,
@@ -85,44 +86,71 @@ class OcrdGbnSbbSegment(OcrdGbnSbbPredict):
                     region_id
                 )
 
-            # Retrieve added TextRegions:
-            regions = page.get_TextRegion()
+            # Find ImageRegion contours of prediction:
+            image_region_contours = Contour.from_image(region_prediction.img, 2)
 
-            for region_idx, (region_cnt, region) in enumerate(zip(region_contours, regions)):
-                region_id = "_region%04d" % region_idx
+            # Filter out child contours:
+            image_region_contours = list(filter(lambda cnt: not cnt.is_child(), image_region_contours))
 
-                # Get image from TextRegion:
-                region_image, region_xywh = self.workspace.image_from_segment(
-                    region,
+            # Filter out invalid polygons:
+            image_region_contours = list(filter(lambda cnt: cnt.polygon.is_valid(), image_region_contours))
+
+            # Add metadata about ImageRegions:
+            for region_idx, region_cnt in enumerate(image_region_contours):
+                region_id = "_image_region%04d" % region_idx
+
+                self._add_ImageRegion(
+                    page,
                     page_image,
-                    page_xywh
+                    page_xywh,
+                    page_id,
+                    region_cnt.polygon.points,
+                    region_id
                 )
 
-                # Get TextLine prediction for TextRegion:
-                line_prediction_region = line_prediction_page.crop(region_cnt.polygon)
+            # Find GraphicRegion contours of prediction:
+            graphic_region_contours = Contour.from_image(region_prediction.img, 3)
 
-                # Find contours of prediction:
-                line_contours = Contour.from_image(line_prediction_region.img)
+            # Filter out child contours:
+            graphic_region_contours = list(filter(lambda cnt: not cnt.is_child(), graphic_region_contours))
 
-                # Filter out child contours:
-                line_contours = list(filter(lambda cnt: not cnt.is_child(), line_contours))
+            # Filter out invalid polygons:
+            graphic_region_contours = list(filter(lambda cnt: cnt.polygon.is_valid(), graphic_region_contours))
 
-                # Filter out invalid polygons:
-                line_contours = list(filter(lambda cnt: cnt.polygon.is_valid(), line_contours))
+            # Add metadata about GraphicRegions:
+            for region_idx, region_cnt in enumerate(graphic_region_contours):
+                region_id = "_graphic_region%04d" % region_idx
 
-                # Add metadata about TextLines:
-                for line_idx, line_cnt in enumerate(line_contours):
-                    line_id = "_line%04d" % line_idx
+                self._add_GraphicRegion(
+                    page,
+                    page_image,
+                    page_xywh,
+                    page_id,
+                    region_cnt.polygon.points,
+                    region_id
+                )
 
-                    self._add_TextLine(
-                        page_id,
-                        region,
-                        region_image,
-                        region_xywh,
-                        region_id,
-                        line_cnt.polygon.points,
-                        line_id
-                    )
+            # Find SeparatorRegion contours of prediction:
+            separator_region_contours = Contour.from_image(region_prediction.img, 4)
+
+            # Filter out child contours:
+            separator_region_contours = list(filter(lambda cnt: not cnt.is_child(), separator_region_contours))
+
+            # Filter out invalid polygons:
+            separator_region_contours = list(filter(lambda cnt: cnt.polygon.is_valid(), separator_region_contours))
+
+            # Add metadata about SeparatorRegions:
+            for region_idx, region_cnt in enumerate(separator_region_contours):
+                region_id = "_separator_region%04d" % region_idx
+
+                self._add_SeparatorRegion(
+                    page,
+                    page_image,
+                    page_xywh,
+                    page_id,
+                    region_cnt.polygon.points,
+                    region_id
+                )
 
             # Add metadata about this operation:
             metadata = pcgts.get_Metadata()

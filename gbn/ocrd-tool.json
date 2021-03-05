@@ -142,7 +142,7 @@
       "categories": [
         "Layout analysis"
       ],
-      "description": "Segments the input page images by predicting the text regions and lines and setting the PAGE-XML TextRegion and TextLine accordingly",
+      "description": "Segments the input page images by predicting the regions and setting the PAGE-XML Regions accordingly",
       "steps": [
         "layout/segmentation/region",
         "layout/segmentation/line"
@@ -154,28 +154,13 @@
         "OCR-D-SEG"
       ],
       "parameters": {
-        "region_model": {
+        "model": {
           "type": "string",
-          "description": "Path to Keras model to be used for predicting text regions",
+          "description": "Path to Keras model to be used for predicting regions",
           "default": "",
           "cacheable": true
         },
-        "region_shaping": {
-          "type": "string",
-          "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
-          "default": "split",
-          "enum": [
-            "resize",
-            "split"
-          ]
-        },
-        "line_model": {
-          "type": "string",
-          "description": "Path to Keras model to be used for predicting text lines",
-          "required": true,
-          "cacheable": true
-        },
-        "line_shaping": {
+        "shaping": {
           "type": "string",
           "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
           "default": "split",

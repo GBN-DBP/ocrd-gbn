@@ -6,7 +6,7 @@ from gbn.tool import OCRD_TOOL
 from ocrd import Processor
 from ocrd_modelfactory import page_from_file
 from ocrd_models.ocrd_page import to_xml
-from ocrd_models.ocrd_page_generateds import AlternativeImageType, BorderType, CoordsType, LabelsType, LabelType, MetadataItemType, TextLineType, TextRegionType
+from ocrd_models.ocrd_page_generateds import AlternativeImageType, BorderType, CoordsType, LabelsType, LabelType, MetadataItemType, TextLineType, TextRegionType, ImageRegionType, GraphicRegionType, SeparatorRegionType
 from ocrd_utils import concat_padded, coordinates_for_segment, getLogger, MIMETYPE_PAGE, points_from_polygon
 
 from os.path import realpath, join
@@ -89,6 +89,48 @@ class OcrdGbnSbbPredict(Processor):
         # Save text region:
         page.add_TextRegion(
             TextRegionType(
+                id=page_id+region_id,
+                Coords=CoordsType(
+                    points=points_from_polygon(region_polygon)
+                )
+            )
+        )
+
+    def _add_ImageRegion(self, page, page_image, page_xywh, page_id, region_polygon, region_id):
+        # Convert to absolute (page) coordinates:
+        region_polygon = coordinates_for_segment(region_polygon, page_image, page_xywh)
+
+        # Save image region:
+        page.add_ImageRegion(
+            ImageRegionType(
+                id=page_id+region_id,
+                Coords=CoordsType(
+                    points=points_from_polygon(region_polygon)
+                )
+            )
+        )
+
+    def _add_GraphicRegion(self, page, page_image, page_xywh, page_id, region_polygon, region_id):
+        # Convert to absolute (page) coordinates:
+        region_polygon = coordinates_for_segment(region_polygon, page_image, page_xywh)
+
+        # Save graphic region:
+        page.add_GraphicRegion(
+            GraphicRegionType(
+                id=page_id+region_id,
+                Coords=CoordsType(
+                    points=points_from_polygon(region_polygon)
+                )
+            )
+        )
+
+    def _add_SeparatorRegion(self, page, page_image, page_xywh, page_id, region_polygon, region_id):
+        # Convert to absolute (page) coordinates:
+        region_polygon = coordinates_for_segment(region_polygon, page_image, page_xywh)
+
+        # Save separator region:
+        page.add_SeparatorRegion(
+            SeparatorRegionType(
                 id=page_id+region_id,
                 Coords=CoordsType(
                     points=points_from_polygon(region_polygon)

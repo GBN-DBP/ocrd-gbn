@@ -113,13 +113,18 @@ class Contour:
         self.polygon = Polygon(self.contour.reshape(self.contour.shape[0], self.contour.shape[2]))
 
     @classmethod
-    def from_image(self, image):
+    def from_image(self, image, color):
         '''
         Retrieves the image contours and wraps them in Contour objects.
         '''
 
+        mask = image == color
+
+        cnt_img = np.zeros_like(image)
+        cnt_img[mask == True] = color
+
         # Get contours and their respective hierarchy information:
-        contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours, hierarchy = cv2.findContours(cnt_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
         if contours: 
             # Remove redundant axis 0:
