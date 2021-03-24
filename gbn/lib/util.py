@@ -22,9 +22,15 @@ def pil_to_cv2_rgb(image, bg_color=255):
     else:
         alpha = None
 
-    # Convert PIL image array to RGB then to Numpy array then to BGR (for OpenCV):
-    image = cv2.cvtColor(np.array(image.convert(
-        'RGB'), dtype=np.uint8), cv2.COLOR_RGB2BGR)
+    # Convert PIL image array to RGB then to Numpy array then to BGR (for
+    # OpenCV):
+    image = cv2.cvtColor(
+        np.array(
+            image.convert('RGB'),
+            dtype=np.uint8
+        ),
+        cv2.COLOR_RGB2BGR
+    )
 
     return image, alpha
 
@@ -33,7 +39,8 @@ def cv2_to_pil_rgb(image, alpha=None):
     '''
     Converts cv2 (OpenCV) BGR image to PIL RGB image
     '''
-    # Convert OpenCV BGR image array (Numpy) to PIL RGB image with alpha channel:
+    # Convert OpenCV BGR image array (Numpy) to PIL RGB image with alpha
+    # channel:
     image = PIL.Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
     # Restore alpha channel, if there is one:
@@ -72,7 +79,8 @@ def cv2_to_pil_gray(image, alpha=None):
     '''
     Converts cv2 (OpenCV) grayscale image to PIL grayscale image
     '''
-    # Convert OpenCV grayscale image array (Numpy) to PIL grayscale image with alpha channel:
+    # Convert OpenCV grayscale image array (Numpy) to PIL grayscale image with
+    # alpha channel:
     image = PIL.Image.fromarray(image)
 
     # Restore alpha channel, if there is one:

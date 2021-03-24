@@ -2,61 +2,6 @@
   "version": "1.0.0",
   "git_url": "https://github.com/sulzbals/gbn",
   "tools": {
-    "ocrd-gbn-sbb-predict": {
-      "executable": "ocrd-gbn-sbb-predict",
-      "categories": [
-        "Layout analysis"
-      ],
-      "description": "Classifies pixels of input images given a binary (two classes) model and store the prediction as the specified PAGE-XML content type",
-      "steps": [
-        "layout/analysis"
-      ],
-      "input_file_grp": [
-        "OCR-D-IMG",
-        "OCR-D-BIN"
-      ],
-      "output_file_grp": [
-        "OCR-D-PREDICT"
-      ],
-      "parameters": {
-        "model": {
-          "type": "string",
-          "description": "Path to Keras model to be used",
-          "required": true,
-          "cacheable": true
-        },
-        "shaping": {
-          "type": "string",
-          "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
-          "required": true,
-          "enum": [
-            "resize",
-            "split"
-          ]
-        },
-        "type": {
-          "type": "string",
-          "description": "PAGE-XML content type to be predicted",
-          "required": true,
-          "enum": [
-            "AlternativeImageType",
-            "BorderType",
-            "TextRegionType",
-            "TextLineType"
-          ]
-        },
-        "operation_level": {
-          "type": "string",
-          "description": "PAGE-XML hierarchy level to operate on",
-          "default": "page",
-          "enum": [
-            "page",
-            "region",
-            "line"
-          ]
-        }
-      }
-    },
     "ocrd-gbn-sbb-crop": {
       "executable": "ocrd-gbn-sbb-crop",
       "categories": [
@@ -124,34 +69,23 @@
             "resize",
             "split"
           ]
-        },
-        "operation_level": {
-          "type": "string",
-          "description": "PAGE-XML hierarchy level to operate on",
-          "default": "page",
-          "enum": [
-            "page",
-            "region",
-            "line"
-          ]
         }
       }
     },
-    "ocrd-gbn-sbb-segment": {
-      "executable": "ocrd-gbn-sbb-segment",
+    "ocrd-gbn-sbb-segment-page": {
+      "executable": "ocrd-gbn-sbb-segment-page",
       "categories": [
         "Layout analysis"
       ],
       "description": "Segments the input page images by predicting the regions and setting the PAGE-XML Regions accordingly",
       "steps": [
-        "layout/segmentation/region",
-        "layout/segmentation/line"
+        "layout/segmentation/region"
       ],
       "input_file_grp": [
-        "OCR-D-DESKEW"
+        "OCR-D-IMG"
       ],
       "output_file_grp": [
-        "OCR-D-SEG"
+        "OCR-D-SEG-PAGE"
       ],
       "parameters": {
         "model": {
@@ -168,6 +102,56 @@
             "resize",
             "split"
           ]
+        },
+        "classes": {
+          "type": "object",
+          "description": "Dictionary specifying the classes (as PAGE-XML elements) to be considered and their respective labels",
+          "default": {
+            "TextRegion": 1,
+            "GraphicRegion": 2,
+            "ImageRegion": 3,
+            "SeparatorRegion": 4
+          }
+        }
+      }
+    },
+    "ocrd-gbn-sbb-segment-regions": {
+      "executable": "ocrd-gbn-sbb-segment-regions",
+      "categories": [
+        "Layout analysis"
+      ],
+      "description": "Segments the input region images by predicting the text lines and setting the PAGE-XML TextLines accordingly",
+      "steps": [
+        "layout/segmentation/line"
+      ],
+      "input_file_grp": [
+        "OCR-D-IMG"
+      ],
+      "output_file_grp": [
+        "OCR-D-SEG-REGIONS"
+      ],
+      "parameters": {
+        "model": {
+          "type": "string",
+          "description": "Path to Keras model to be used for predicting text lines",
+          "default": "",
+          "cacheable": true
+        },
+        "shaping": {
+          "type": "string",
+          "description": "How the images must be processed in order to match the input shape of the model ('resize' for resizing to model shape and 'split' for splitting into patches)",
+          "default": "split",
+          "enum": [
+            "resize",
+            "split"
+          ]
+        },
+        "classes": {
+          "type": "object",
+          "description": "Dictionary specifying the classes (as PAGE-XML elements) to be considered and their respective labels",
+          "default": {
+            "TextLine": 1
+          }
         }
       }
     }

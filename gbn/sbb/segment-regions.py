@@ -7,21 +7,21 @@ import ocrd_utils
 
 from gbn.processor import OcrdGbnProcessor
 from gbn.lib.dl import Model
-from gbn.lib.struct import Contour
+from gbn.lib.struct import Contour, Polygon
 from gbn.lib.util import pil_to_cv2_rgb
 
 
-class OcrdGbnSbbCrop(OcrdGbnProcessor):
-    tool = "ocrd-gbn-sbb-crop"
-    log = ocrd_utils.getLogger("processor.OcrdGbnSbbCrop")
+class OcrdGbnSbbSegmentRegions(OcrdGbnProcessor):
+    tool = "ocrd-gbn-sbb-segment-regions"
+    log = ocrd_utils.getLogger("processor.OcrdGbnSbbSegmentRegions")
 
-    fallback_image_filegrp = "OCR-D-IMG-CROP"
+    fallback_image_filegrp = "OCR-D-IMG-SEG-REGIONS"
 
     def process(self):
         # Ensure path to model is absolute:
         self.parameter['model'] = os.path.realpath(self.parameter['model'])
 
-        # Construct Model object:
+        # Construct Model object for prediction:
         model = Model(self.parameter['model'], self.parameter['shaping'])
 
         for (self.page_num, self.input_file) in enumerate(self.input_files):
@@ -41,39 +41,66 @@ class OcrdGbnSbbCrop(OcrdGbnProcessor):
             # Get image from PAGE:
             page_image, page_xywh, _ = self.workspace.image_from_page(
                 page,
-                page_id,
-                feature_filter="cropped"
+                page_id
             )
 
             # Convert PIL to cv2 (RGB):
-            page_image, _ = pil_to_cv2_rgb(page_image)
+            page_image_cv2, _ = pil_to_cv2_rgb(page_image)
 
-            # Get prediction for segment:
-            page_prediction = model.predict(page_image)
+            # Get TextLine prediction for page:
+            line_prediction = model.predict(page_image_cv2)
 
-            # Find contours of prediction:
-            contours = Contour.from_image(page_prediction.img)
+            regions = page.get_TextRegion()
 
-            # Filter out child contours:
-            contours = list(filter(lambda cnt: not cnt.is_child(), contours))
+            for region_idx, region in enumerate(regions):
+                region_image, region_xywh = self.workspace.image_from_segment(
+                    region,
+                    page_image,
+                    page_xywh
+                )
 
-            # Filter out invalid polygons:
-            contours = list(
-                filter(lambda cnt: cnt.polygon.is_valid(), contours)
-            )
+                region_id = region.get_regionRef()
 
-            # Sort contours by area:
-            contours = sorted(contours, key=lambda cnt: cnt.area)
+                # Get TextRegion polygon:
+                region_polygon = Polygon(region.get_Coords().get_points())
 
-            # Get polygon of largest contour:
-            border_polygon = contours[-1].polygon
+                # Get TextLine prediction inside TextRegion:
+                line_subprediction = line_prediction.crop(region_polygon)
 
-            self._set_Border(
-                page,
-                page_image,
-                page_xywh,
-                border_polygon.points
-            )
+                # Find contours of given class in prediction:
+                line_contours = Contour.from_image(
+                    line_subprediction.img,
+                    self.parameter['classes']['TextLine']
+                )
+
+                # Filter out child contours:
+                line_contours = list(
+                    filter(
+                        lambda cnt: not cnt.is_child(),
+                        line_contours
+                    )
+                )
+
+                # Filter out invalid polygons:
+                line_contours = list(
+                    filter(
+                        lambda cnt: cnt.polygon.is_valid(),
+                        line_contours
+                    )
+                )
+
+                for line_idx, line_cnt in enumerate(line_contours):
+                    line_id = "_TextLine" + "%04d" % line_idx
+
+                    self._add_TextLine(
+                        page_id,
+                        region,
+                        region_image,
+                        region_xywh,
+                        region_id,
+                        line_cnt.polygon.points,
+                        line_id
+                    )
 
             # Add metadata about this operation:
             metadata = pcgts.get_Metadata()
@@ -106,6 +133,6 @@ class OcrdGbnSbbCrop(OcrdGbnProcessor):
                 local_filename=os.path.join(
                     self.output_file_grp,
                     self.page_file_id
-                    ) + ".xml",
+                ) + ".xml",
                 content=ocrd_page.to_xml(pcgts)
             )

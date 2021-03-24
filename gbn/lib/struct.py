@@ -27,15 +27,17 @@ class BoundingBox:
     @classmethod
     def from_polygon(self, polygon):
         '''
-        Constructs a BoundingBox object from a Polygon object through cv2.boundingRect.
+        Constructs a BoundingBox object from a Polygon object through
+        cv2.boundingRect.
         '''
 
         return BoundingBox(cv2.boundingRect(polygon.points))
 
     def split(self, intervals, axis):
         '''
-        Splits the bounding box along given axis given a list of intervals. An interval consist of a tuple (start, end)
-        representing the interval [start, end[ along the axis to be split.
+        Splits the bounding box along given axis given a list of intervals. An
+        interval consist of a tuple (start, end) representing the interval
+        [start, end[ along the axis to be split.
         '''
 
         boxes = []
@@ -68,7 +70,12 @@ class Polygon:
 
         # Map points to origin (x0 == 0, y0 == 0):
         self.mapped_points = np.stack(
-            (self.points[:, 0] - self.bbox.x0, self.points[:, 1] - self.bbox.y0), axis=1)
+            (
+                self.points[:, 0] - self.bbox.x0,
+                self.points[:, 1] - self.bbox.y0
+            ),
+            axis=1
+        )
 
     def is_valid(self):
         '''
@@ -82,7 +89,8 @@ class Polygon:
         Converts polygon to mask.
         '''
 
-        # Create a background canvas with the shape of the polygon's bounding box:
+        # Create a background canvas with the shape of the polygon's bounding
+        # box:
         canvas = np.zeros((self.bbox.height, self.bbox.width), dtype=np.uint8)
 
         # Draw polygon on background canvas:
@@ -101,8 +109,9 @@ class Contour:
 
     def __init__(self, contour, hierarchy):
         '''
-        Constructs a Contour object. Both the actual contour and the hierarchy returned from the cv2.findContours call
-        with mode cv2.RETR_TREE must be provided.
+        Constructs a Contour object. Both the actual contour and the hierarchy
+        returned from the cv2.findContours call with mode cv2.RETR_TREE must
+        be provided.
         '''
 
         self.contour = contour
@@ -114,8 +123,12 @@ class Contour:
         self.next, self.previous, self.first_child, self.parent = hierarchy
 
         # Remove redundant axis 1 and wrap contour in Polygon object:
-        self.polygon = Polygon(self.contour.reshape(
-            self.contour.shape[0], self.contour.shape[2]))
+        self.polygon = Polygon(
+            self.contour.reshape(
+                self.contour.shape[0],
+                self.contour.shape[2]
+            )
+        )
 
     @classmethod
     def from_image(self, image, color):
@@ -123,19 +136,22 @@ class Contour:
         Retrieves the image contours and wraps them in Contour objects.
         '''
 
-        mask = image == color
-
         cnt_img = np.zeros_like(image)
-        cnt_img[mask == True] = color
+        cnt_img[image == color] = color
 
         # Get contours and their respective hierarchy information:
         contours, hierarchy = cv2.findContours(
-            cnt_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            cnt_img,
+            cv2.RETR_TREE,
+            cv2.CHAIN_APPROX_SIMPLE
+        )
 
         if contours:
             # Remove redundant axis 0:
             hierarchy = hierarchy.reshape(
-                hierarchy.shape[1], hierarchy.shape[2])
+                hierarchy.shape[1],
+                hierarchy.shape[2]
+            )
 
             instances = []
             for cnt, h in zip(contours, hierarchy):
@@ -148,7 +164,8 @@ class Contour:
 
     def is_child(self):
         '''
-        Checks whether the contour is a child of another contour along the hierarchy.
+        Checks whether the contour is a child of another contour along the
+        hierarchy.
         '''
 
         return self.parent != -1
@@ -156,7 +173,8 @@ class Contour:
 
 class Projection:
     '''
-    Represents a projection of the foreground pixels of an image (for projection profiling).
+    Represents a projection of the foreground pixels of an image (for
+    projection profiling).
     '''
 
     def __init__(self, signal):
@@ -168,8 +186,9 @@ class Projection:
     @classmethod
     def from_image(image, axis, sigma=3):
         '''
-        Constructs a projection object from the signal obtained by projecting the given image along given axis and 
-        smoothing it through an 1D Gaussian filter with given sigma.
+        Constructs a projection object from the signal obtained by projecting
+        the given image along given axis and smoothing it through an 1D
+        Gaussian filter with given sigma.
         '''
 
         # Count the foreground pixels along axis:
@@ -198,7 +217,8 @@ class Projection:
         # Get indices of non-zero points of the projection:
         nonzero = np.nonzero(self.signal)
 
-        # Split consecutive indices (continuous regions) - Based on https://stackoverflow.com/a/7353335:
+        # Split consecutive indices (continuous regions) - Based on
+        # https://stackoverflow.com/a/7353335:
         consecutive = np.split(nonzero, np.where(np.diff(nonzero > 1)[0] + 1))
 
         intervals = []
