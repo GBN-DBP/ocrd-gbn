@@ -63,7 +63,7 @@ class Polygon:
         Constructs a Polygon object from a list of points.
         '''
 
-        self.points = points
+        self.points = np.array(points)
 
         # Extract bounding box of polygon:
         self.bbox = BoundingBox.from_polygon(self)
@@ -76,6 +76,11 @@ class Polygon:
             ),
             axis=1
         )
+
+    @classmethod
+    def from_point_string(self, string):
+        points = [point for point in string.split(' ')]
+        return Polygon([[int(coord) for coord in point.split(',')] for point in points])
 
     def is_valid(self):
         '''

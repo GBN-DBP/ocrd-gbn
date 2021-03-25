@@ -209,18 +209,17 @@ class Prediction:
         Crops the prediction image given a Polygon object.
         '''
 
-        cropped = np.zeros_like(self.img)
-
         # Get bounding box coordinates for polygon to be cropped:
         x0 = polygon.bbox.x0
         x1 = polygon.bbox.x1
         y0 = polygon.bbox.y0
         y1 = polygon.bbox.y1
 
+        cropped = np.zeros_like(self.img[y0:y1, x0:x1])
+
         # Crop the bounding rectangle of the polygon and copy the all the
         # points inside the polygon:
-        cropped[y0:y1, x0:x1][polygon.to_mask()] = \
-            self.img[y0:y1, x0:x1][polygon.to_mask()]
+        cropped[polygon.to_mask()] = self.img[y0:y1, x0:x1][polygon.to_mask()]
 
         return Prediction(cropped)
 
