@@ -67,7 +67,9 @@ class OcrdGbnSbbSegmentPage(OcrdGbnProcessor):
 
             elif border is not None:
                 # Get Border polygon:
-                border_polygon = Polygon.from_point_string(border.get_Coords().get_points())
+                border_polygon = Polygon.from_point_string(
+                    border.get_Coords().get_points()
+                )
 
                 # Get Region prediction inside the Border:
                 region_prediction = region_prediction.crop(border_polygon)
@@ -186,7 +188,7 @@ class OcrdGbnSbbSegmentRegions(OcrdGbnProcessor):
 
             regions = page.get_TextRegion()
 
-            for region_idx, region in enumerate(regions):
+            for region in regions:
                 region_image, region_xywh = self.workspace.image_from_segment(
                     region,
                     page_image,
@@ -196,7 +198,9 @@ class OcrdGbnSbbSegmentRegions(OcrdGbnProcessor):
                 region_id = region.get_id()
 
                 # Get TextRegion polygon:
-                region_polygon = Polygon.from_point_string(region.get_Coords().get_points())
+                region_polygon = Polygon.from_point_string(
+                    region.get_Coords().get_points()
+                )
 
                 # Get TextLine prediction inside TextRegion:
                 line_subprediction = line_prediction.crop(region_polygon)

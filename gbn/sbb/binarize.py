@@ -75,8 +75,8 @@ class OcrdGbnSbbBinarize(OcrdGbnProcessor):
 
                 regions = page.get_TextRegion()
 
-                for region_idx, region in enumerate(regions):
-                    region_id = "_region%04d" % region_idx
+                for region in regions:
+                    region_id = region.get_id()
 
                     # Get image from TextRegion:
                     region_image, region_xywh = \
@@ -115,8 +115,8 @@ class OcrdGbnSbbBinarize(OcrdGbnProcessor):
 
                 regions = page.get_TextRegion()
 
-                for region_idx, region in enumerate(regions):
-                    region_id = "_region%04d" % region_idx
+                for region in regions:
+                    region_id = region.get_id()
 
                     lines = region.get_TextLine()
 
