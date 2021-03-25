@@ -37,7 +37,7 @@ class OcrdGbnSbbBinarize(OcrdGbnProcessor):
             )
             page = pcgts.get_Page()
 
-            if self.parameter['operation_level'] == "page":
+            if self.parameter['operation-level'] == "page":
                 # Get image from PAGE:
                 page_image, page_xywh, _ = self.workspace.image_from_page(
                     page,
@@ -66,7 +66,7 @@ class OcrdGbnSbbBinarize(OcrdGbnProcessor):
                     "binarized"
                 )
 
-            elif self.parameter['operation_level'] == "region":
+            elif self.parameter['operation-level'] == "regions":
                 # Get image from PAGE:
                 page_image, page_xywh, _ = self.workspace.image_from_page(
                     page,
@@ -106,7 +106,7 @@ class OcrdGbnSbbBinarize(OcrdGbnProcessor):
                         "binarized"
                     )
 
-            elif self.parameter['operation_level'] == "line":
+            elif self.parameter['operation-level'] == "lines":
                 # Get image from PAGE:
                 page_image, page_xywh, _ = self.workspace.image_from_page(
                     page,

@@ -69,6 +69,16 @@
             "resize",
             "split"
           ]
+        },
+        "operation-level": {
+          "type": "string",
+          "description": "Level of the PAGE-XML hierarchy to operate on",
+          "default": "page",
+          "enum": [
+            "page",
+            "regions",
+            "lines"
+          ]
         }
       }
     },
